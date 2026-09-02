@@ -103,15 +103,23 @@ depois filtra.
 
 ### 6:00 – 7:00 · O padrão do erro
 
-Ler uma linha de erro em voz alta. Mostrar que a mensagem se repete e que
-carrega um `traceId`.
+Ler uma linha de erro em voz alta. Elas são autologs gerados pelo Alloy a
+partir dos traces, em formato logfmt, e têm esta cara:
+
+```
+span=requester dur=11468966702ns status=Error svc=mythical-requester traceId=e331212c4c60d3e6bd2a6a24ff42401c
+```
+
+Mostrar que a mensagem se repete, que o `dur` é enorme, e que a linha carrega
+um `traceId`. Os campos disponíveis para filtrar são `span`, `dur`, `status`,
+`svc` e `traceId`.
 
 ### 7:00 – 8:00 · 🔖 Agregação de log em gráfico
 
 **🔖 Favorito 4** — a mesma consulta transformada em métrica:
 
 ```logql
-sum by (endpoint) (count_over_time({job="alloy"} | logfmt | status="Error" [1m]))
+sum by (svc) (count_over_time({job="alloy"} | logfmt | status="Error" [1m]))
 ```
 
 O ponto a fazer: **log vira série temporal**. É o mesmo dado, com outra

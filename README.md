@@ -30,9 +30,22 @@ make restore   # recria os volumes a partir de snapshot/ e sobe o stack (2 a 3 m
 make verify    # semáforo de OK/FALHOU por fonte de dados
 ```
 
-`make` sem argumento lista todos os alvos. Quem não tiver `make` instalado pode
-chamar os scripts direto: `./stack/setup.sh`, `./stack/restore.sh` e assim por
-diante — o comportamento é idêntico.
+`make` sem argumento lista todos os alvos.
+
+> **O Git for Windows não traz `make`.** Se `make: command not found` aparecer,
+> chame os scripts direto — o comportamento é idêntico, porque cada alvo do
+> Makefile é só um envelope:
+>
+> ```bash
+> ./stack/setup.sh
+> ./stack/record.sh          # ./stack/record.sh --do-zero para gravar do zero
+> ./stack/freeze.sh
+> ./stack/restore.sh
+> ./stack/verify.sh
+> ```
+>
+> Para instalar o `make` no Windows: `winget install GnuWin32.Make` ou
+> `choco install make`.
 
 ## Pré-requisitos
 
@@ -41,6 +54,7 @@ diante — o comportamento é idêntico.
 | Docker Engine | 24+ | Docker Desktop no Windows e no macOS |
 | Docker Compose | v2 | o plugin `docker compose`; o `docker-compose` v1 não serve |
 | Git | qualquer versão recente | usado por `make setup` para clonar o stack |
+| `make` | opcional | não vem com o Git for Windows; sem ele, chame os scripts direto |
 | RAM livre | 6 a 8 GB | são 12 containers; abaixo de 6 GB o Tempo começa a matar consulta |
 | Disco livre | ~10 GB | imagens (~4 GB) mais a janela congelada |
 | Shell | Bash | no Windows, use o **Git Bash**, não o PowerShell |

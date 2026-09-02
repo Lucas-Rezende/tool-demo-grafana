@@ -123,6 +123,9 @@ no projetor.
 make setup
 ```
 
+> Sem `make` instalado (é o caso do Git for Windows padrão), troque todo
+> `make <alvo>` deste documento por `./stack/<alvo>.sh`. O resultado é o mesmo.
+
 O script clona o `grafana/intro-to-mltp` em `intro-to-mltp/`, fixa o commit
 registrado em `stack/_comum.sh`, corrige a retenção do Tempo, avisa sobre o k6 e
 sobre o dashboard do k6, e baixa todas as imagens. Ao final grava

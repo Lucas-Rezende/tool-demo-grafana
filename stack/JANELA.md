@@ -29,6 +29,16 @@ o trecho de tempo por valores absolutos:
 http://localhost:3000/d/<uid>/<slug>?orgId=1&from=<INICIO_MS>&to=<FIM_MS>
 ```
 
+UIDs dos dashboards provisionados no commit fixado (a cópia da demo terá um
+UID próprio, gerado na hora de salvar):
+
+| Dashboard | UID |
+|---|---|
+| MLT Dashboard | `ed4f4709-4d3b-48fd-a311-a036b85dbd5b` |
+| MLT Erroring Endpoints | `9UKWKDqVy` |
+| Traces in Dashboards | `b550438e-5e9a-4bfa-8d1d-68a0104c09f2` |
+| ~~Official k6 Test Result~~ | fora do escopo, não abrir |
+
 Regras que valem para todos os links:
 
 - `from` e `to` **sempre** em epoch ms. Nunca `from=now-1h`: com dados
@@ -46,7 +56,7 @@ Regras que valem para todos os links:
 | 1 | Abertura | Pessoa 1 | Cópia do MLT Dashboard, visão geral | `PREENCHER` |
 | 2 | Abertura | Pessoa 1 | Mesmo dashboard com `var-httpEndpoint` filtrado no endpoint problemático | `PREENCHER` |
 | 3 | Logs | Pessoa 2 | Explore + Loki, `{job="alloy"} \| logfmt \| status="Error"` | `PREENCHER` |
-| 4 | Logs | Pessoa 2 | Mesma query agregada em gráfico (`sum by (...) (count_over_time(...))`) | `PREENCHER` |
+| 4 | Logs | Pessoa 2 | Mesma query agregada: `sum by (svc) (count_over_time({job="alloy"} \| logfmt \| status="Error" [1m]))` | `PREENCHER` |
 | 5 | Traces | Pessoa 2 | Trace específico aberto no Tempo (cascata de spans) | `PREENCHER` |
 | 6 | Alertas | Pessoa 3 | Lista de regras de alerta | `PREENCHER` |
 | 7 | Alertas | Pessoa 3 | Regra sintética em transição de estado | `PREENCHER` |
