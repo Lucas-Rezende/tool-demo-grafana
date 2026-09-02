@@ -87,15 +87,26 @@ Percorrer, nesta ordem:
    da tela de uma vez, e que existe também um seletor por `service.version`,
    que é o que permite comparar versões implantadas.
 
-4. **Latência.** O painel de percentil 95 e o de latência por endpoint. É isto
-   que responde "o que vale otimizar" — a manutenção perfectiva do slide
-   anterior.
+4. **Latência — e a pista que sobra.** O painel
+   `95th Percentile Response Latencies (ms)` marca cerca de **15 000 ms**, ou
+   seja, 15 segundos, em todos os cinco endpoints. Deixar essa pista no ar sem
+   resolver:
+
+   > Repare: o percentil 95 está em 15 segundos. Se 95% das requisições
+   > estivessem lentas assim, a aplicação estaria inutilizável — e ela não
+   > está. Então alguma coisa aqui é muito lenta e é minoria. Guardem isso.
+
+   Aproveitar para dizer que é este tipo de painel que responde "o que vale
+   otimizar" — a manutenção perfectiva do slide anterior — e que percentil
+   existe justamente porque média esconde cauda.
 
 ### Fala de transição para a pessoa 2
 
-> A métrica respondeu uma coisa e derrubou uma hipótese: existe erro, cerca de
-> 5%, e ele **não** está concentrado num endpoint. O que a métrica não diz é
-> qual é o erro. Para isso a gente precisa de outro sinal.
+> A métrica respondeu uma coisa, derrubou uma hipótese e deixou uma pista.
+> Existe erro, cerca de 5%; ele **não** está concentrado num endpoint; e o
+> percentil 95 está em 15 segundos. O que a métrica não diz é qual é o erro,
+> nem se essas duas coisas têm relação. Para isso a gente precisa de outro
+> sinal.
 
 ---
 
@@ -139,11 +150,13 @@ Na janela gravada, a diferença é esta:
 | `status="Ok"` | ~30 ms | ~93 ms |
 | `status="Error"` | ~11 s | ~23 s |
 
-Dizer em voz alta o que isso significa:
+Dizer em voz alta o que isso significa, e fechar a pista deixada no bloco 1:
 
 > Não é só um erro. É um erro **lento**. A requisição que falha custa umas
-> trezentas vezes mais que a que dá certo. E isso não aparecia na média da
-> métrica, porque 5% de casos lentos se dissolvem numa média.
+> trezentas vezes mais que a que dá certo. E é isto que estava puxando o
+> percentil 95 para 15 segundos lá no dashboard: não é a aplicação inteira
+> que está lenta, são os 5% que falham. As duas coisas que pareciam separadas
+> são o mesmo defeito.
 
 ### 7:00 – 8:00 · 🔖 Agregação de log em gráfico
 
