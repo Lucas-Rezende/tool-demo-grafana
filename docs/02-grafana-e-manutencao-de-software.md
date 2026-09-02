@@ -19,19 +19,33 @@ sistemas distribuídos não se comporta assim. Eles dependem de volume de dados
 real, de concorrência real, de latência de rede real e de um estado acumulado
 que não existe na máquina de quem desenvolve.
 
-O caso da nossa demo é exatamente esse. Existe um endpoint com taxa de erro
-elevada. Ele não falha sempre, não falha localmente e a mensagem de erro do
-serviço de fachada não diz qual é a causa. A investigação que a demonstração
+O caso da nossa demo é exatamente esse. Cerca de 5% das requisições falham com
+500, de forma espalhada por todos os endpoints, e a mensagem que o serviço de
+fachada devolve não diz qual é a causa. A investigação que a demonstração
 percorre é:
 
-1. **Métrica** diz *que* existe erro e em qual endpoint.
-2. **Log** diz *como* o erro se manifesta e dá o identificador do trace.
-3. **Trace** diz *onde*: qual span falhou, dentro de qual serviço, chamando
-   qual dependência.
+1. **Métrica** diz *que* existe erro — e, ao filtrar por endpoint com uma
+   variável de template, **derruba** a primeira hipótese: não é um endpoint
+   específico, é transversal.
+2. **Log** diz *como* o erro se manifesta: as requisições que falham levam
+   ~11 segundos, contra ~30 milissegundos das que dão certo. O erro é lento, e
+   isso a média da métrica escondia.
+3. **Trace** diz *onde*: quase todo o tempo está dentro de um único span,
+   `pg.query:INSERT postgres`, que termina em erro.
 
-Ao final, o defeito deixou de ser "às vezes dá 500" e virou uma linha de código
-específica em um serviço específico. Isso é diagnóstico de manutenção
-corretiva, feito sobre um sistema em execução em vez de sobre um teste.
+Os atributos desse span fecham o diagnóstico: o SQL é
+`INSERT INTO beholder(name) VALUES ($1)` e a mensagem é
+`null value in column "name" ... violates not-null constraint`. A aplicação
+aceita um `name` nulo e deixa a validação para a constraint do banco.
+
+Ao final, o defeito deixou de ser "às vezes dá 500" e virou "falta validar
+`name` antes de chamar o banco". Isso é diagnóstico de manutenção corretiva
+feito sobre um sistema em execução em vez de sobre um teste.
+
+Vale notar o tipo de defeito: a regra violada não está no código-fonte, está no
+schema do banco. Revisão de código e análise estática têm dificuldade
+estrutural com esse tipo de defeito, porque a informação que provaria o erro
+não está no arquivo que elas leem.
 
 ## Manutenção perfectiva
 

@@ -61,26 +61,41 @@ intervalo é absoluto. É honesto, é rápido e evita a pergunta.
 
 ### 2:30 – 5:00 · 🔖 Demo parte 1: o dashboard
 
-**🔖 Favorito 1** — a cópia do `MLT Dashboard`, janela completa.
+**🔖 Favorito 1** — `MLT Demo`, janela completa.
+
+> Ao abrir, **role a tela uma vez**. O Grafana só renderiza o painel quando ele
+> entra na área visível; num dashboard recém-carregado a área de baixo aparece
+> vazia por um instante.
 
 Percorrer, nesta ordem:
 
-1. **Taxa de erro por endpoint.** Existe um endpoint com erro claramente acima
-   dos outros. Apontar.
-2. **Latência.** Mostrar o painel de percentil 95 e o de latência por endpoint.
-   Comentar que é isto que responde "o que vale otimizar" — a manutenção
-   perfectiva do slide anterior.
-3. **Variável de template.** 🔖 **Favorito 2** — o mesmo dashboard com
-   `httpEndpoint` fixado no endpoint problemático. Explicar que trocar o
-   seletor reescreve todas as consultas da tela de uma vez, e que existe
-   também um seletor por `service.version`, que é o que permite comparar
-   versões implantadas.
+1. **Taxa de erro.** O painel `Overall Error %age` marca cerca de **5%**.
+   Existe defeito, e ele não é raro.
+
+2. **Erro por endpoint.** O painel `Error Percentages by Target` mostra os
+   cinco endpoints — `/beholder`, `/illithid`, `/manticore`, `/owlbear`,
+   `/unicorn` — todos entre 4% e 5,5%. **Nenhum se destaca.**
+
+3. **Variável de template, usada para descartar uma hipótese.**
+   🔖 **Favorito 2** — o mesmo dashboard com `httpEndpoint` fixado em
+   `/beholder`. Este é o momento pedagógico do bloco: a primeira hipótese de
+   qualquer pessoa é "deve ser um endpoint específico", e a variável de
+   template é o que permite testar isso em dois segundos. O resultado é que a
+   hipótese **cai**: o erro é transversal.
+
+   Aproveitar para explicar que trocar o seletor reescreve todas as consultas
+   da tela de uma vez, e que existe também um seletor por `service.version`,
+   que é o que permite comparar versões implantadas.
+
+4. **Latência.** O painel de percentil 95 e o de latência por endpoint. É isto
+   que responde "o que vale otimizar" — a manutenção perfectiva do slide
+   anterior.
 
 ### Fala de transição para a pessoa 2
 
-> Então a métrica já respondeu duas coisas: que existe erro, e em qual
-> endpoint. O que ela não diz é **qual** erro. Para isso a gente precisa de
-> outro sinal.
+> A métrica respondeu uma coisa e derrubou uma hipótese: existe erro, cerca de
+> 5%, e ele **não** está concentrado num endpoint. O que a métrica não diz é
+> qual é o erro. Para isso a gente precisa de outro sinal.
 
 ---
 
@@ -101,18 +116,34 @@ Explicar em uma frase o modelo do Loki: ele indexa **rótulos**, não o conteúd
 da linha. Por isso a consulta começa por um seletor de fluxo entre chaves e só
 depois filtra.
 
-### 6:00 – 7:00 · O padrão do erro
+### 6:00 – 7:00 · O padrão do erro — e a descoberta do bloco
 
-Ler uma linha de erro em voz alta. Elas são autologs gerados pelo Alloy a
-partir dos traces, em formato logfmt, e têm esta cara:
+Ler uma linha de erro em voz alta. São autologs gerados pelo Alloy a partir dos
+traces, em formato logfmt, e têm esta cara:
 
 ```
 span=requester dur=11468966702ns status=Error svc=mythical-requester traceId=e331212c4c60d3e6bd2a6a24ff42401c
 ```
 
-Mostrar que a mensagem se repete, que o `dur` é enorme, e que a linha carrega
-um `traceId`. Os campos disponíveis para filtrar são `span`, `dur`, `status`,
-`svc` e `traceId`.
+Os campos disponíveis para filtrar são `span`, `dur`, `status`, `svc` e
+`traceId`.
+
+**Aqui está a descoberta que a métrica não deu.** Olhe o `dur`: são
+**11 segundos**. Troque o filtro para `status="Ok"` e leia uma linha normal: o
+`dur` fica na casa das **dezenas de milissegundos**.
+
+Na janela gravada, a diferença é esta:
+
+| | mediana | p95 |
+|---|---|---|
+| `status="Ok"` | ~30 ms | ~93 ms |
+| `status="Error"` | ~11 s | ~23 s |
+
+Dizer em voz alta o que isso significa:
+
+> Não é só um erro. É um erro **lento**. A requisição que falha custa umas
+> trezentas vezes mais que a que dá certo. E isso não aparecia na média da
+> métrica, porque 5% de casos lentos se dissolvem numa média.
 
 ### 7:00 – 8:00 · 🔖 Agregação de log em gráfico
 
@@ -141,20 +172,42 @@ sinais sendo configurada, não mágica.
 **🔖 Favorito 5** — o trace escolhido no ensaio, aberto direto, como plano B
 caso o clique não funcione.
 
-Na cascata de spans:
+Na cascata de spans, seguir o tempo, não a estrutura:
 
-1. Mostrar a estrutura: a requisição entra em um serviço, que chama outro, que
-   chama o banco.
-2. Achar **o span com erro** (marcado em vermelho).
-3. Abrir os atributos do span e mostrar a dependência culpada e a mensagem.
+1. **`requester` (mythical-requester), ~22 s, vermelho.** A requisição inteira.
+2. **`POST /:endpoint` (mythical-server), ~14 s, vermelho.** O servidor
+   consumiu a maior parte. Já dá para dizer: o problema não está no cliente.
+3. **`pg.query:INSERT postgres` (mythical-server), ~13,7 s, vermelho.**
+   Praticamente todo o tempo do servidor está dentro de **uma única chamada ao
+   banco**. Esta é a dependência culpada.
+
+Abrir os atributos desse span. Eles entregam o diagnóstico inteiro:
+
+```
+db.system.name  = postgresql
+db.query.text   = INSERT INTO beholder(name) VALUES ($1)
+server.address  = mythical-database
+status.message  = null value in column "name" of relation "beholder"
+                  violates not-null constraint
+evento exception: PostgreSQL error of type 'error' occurred (code: 23502)
+```
+
+Ou seja: **a aplicação aceita um `name` nulo, manda para o banco, e quem
+rejeita é a constraint `NOT NULL`.** A validação que deveria estar na borda da
+aplicação só existe no schema do banco — e essa checagem custa 13 segundos por
+requisição.
 
 Dizer o que acabou de acontecer:
 
-> A métrica disse que existe erro. O log disse como ele se manifesta. O trace
-> disse onde: neste serviço, neste span, nesta chamada. Saímos de "às vezes dá
-> 500" para uma linha específica de um serviço específico. Isso é diagnóstico
-> de manutenção corretiva feito sobre um sistema em execução, sem conseguir
-> reproduzir o defeito localmente.
+> A métrica disse que existe erro e derrubou a hipótese do endpoint. O log
+> disse que o erro é lento. O trace disse exatamente onde: neste serviço, neste
+> span, neste `INSERT`, com este SQL e esta mensagem do Postgres. Saímos de
+> "às vezes dá 500" para "falta validar `name` antes de chamar o banco".
+>
+> Isso é diagnóstico de manutenção corretiva feito sobre um sistema em
+> execução. E repare no tipo de defeito: é um defeito que revisão de código não
+> pega com facilidade, porque a regra que está sendo violada não mora no
+> código, mora no schema do banco.
 
 ### 10:00 – 10:30 · Fala de transição para a pessoa 3
 
