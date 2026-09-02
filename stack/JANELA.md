@@ -115,5 +115,5 @@ Medidos sobre a janela gravada. Confira e atualize se regravarem.
 - [ ] Os 7 favoritos abrem com dados, sem tocar no seletor de tempo
 - [ ] O container `k6` não está no ar
 - [ ] Nenhum favorito aponta para Pyroscope ou para o dashboard do k6
-- [ ] Vídeo de backup gravado (ver `docs/07-plano-de-contingencia.md`)
+- [ ] `snapshot/demo-backup.mp4` abre no player da máquina que apresenta
 - [ ] `snapshot/favoritos.html` importado no navegador da máquina que apresenta

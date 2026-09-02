@@ -8,6 +8,10 @@ snapshot/
 # stack/_comum.sh; não faz sentido versionar aqui.
 intro-to-mltp/
 
+# Dependências do gravador de vídeo (Node), instaladas por 'make video'.
+# São ~30 MB de node_modules e não fazem parte da demo.
+.video/
+
 # Metadados gerados por 'make setup' na máquina local.
 stack/.setup-info
 

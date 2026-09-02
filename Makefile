@@ -6,7 +6,7 @@
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help setup record record-zero freeze restore verify urls pin clean
+.PHONY: help setup record record-zero freeze restore verify urls video pin clean
 
 help:
 	@echo ""
@@ -24,6 +24,7 @@ help:
 	@echo "  Auxiliares:"
 	@echo "    make record-zero  Como 'record', mas apaga os volumes antes"
 	@echo "    make urls         Gera as URLs congeladas e snapshot/favoritos.html"
+	@echo "    make video        Grava o vídeo de backup em snapshot/demo-backup.mp4"
 	@echo "    make pin          Imprime as imagens mythical-* fixadas por digest"
 	@echo "    make clean        Derruba o stack e apaga os volumes (snapshot/ é preservado)"
 	@echo ""
@@ -50,6 +51,9 @@ verify:
 
 urls:
 	@./stack/urls.sh
+
+video:
+	@./stack/video.sh
 
 pin:
 	@./stack/pin-images.sh

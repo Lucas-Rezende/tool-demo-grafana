@@ -11,7 +11,7 @@ custa muito menos que dois minutos de silêncio com alguém digitando comando.
 - [ ] `make restore` e `make verify` rodados na máquina que vai apresentar,
       com tudo verde.
 - [ ] Os 7 favoritos abrem com dados, sem tocar no seletor de tempo.
-- [ ] Vídeo de backup gravado (ver abaixo).
+- [ ] `snapshot/demo-backup.mp4` testado no player da máquina que apresenta.
 - [ ] `snapshot/` copiado para um pendrive.
 - [ ] Slides exportados em PDF, em um pendrive e em um e-mail para os três.
 - [ ] Segunda máquina com o ciclo completo já testado. Se só uma máquina do
@@ -19,15 +19,36 @@ custa muito menos que dois minutos de silêncio com alguém digitando comando.
 
 ## O vídeo de backup
 
-Grave a demonstração inteira em vídeo durante o ensaio geral, com narração ou
-sem. De 6 a 8 minutos, cobrindo os blocos 1 e 2 e a parte de alertas do bloco 3.
+**Já existe:** `snapshot/demo-backup.mp4`, 3 min 17 s, 1440×900, 6 MB. Também
+fica o `.webm` bruto, do qual o MP4 é convertido.
 
-O vídeo não substitui a demonstração — o enunciado exige demonstração real, e
-screenshot não basta. Ele é seguro contra o caso em que o Docker não sobe na
-sala de aula. Se for preciso usar, diga em voz alta que é uma gravação do
-ensaio e por que está sendo usada.
+Ele percorre os sete favoritos na ordem do roteiro, com legendas sobrepostas
+identificando cada passo, e para nos quadros que importam — o detalhe do span
+`pg.query:INSERT postgres` fica na tela por doze segundos.
 
-Guarde em dois lugares: no disco da máquina e em um pendrive.
+**O vídeo é mudo, de propósito.** A ideia não é substituir a apresentação: é
+que alguém do grupo narre por cima, ao vivo, com o roteiro na mão. Isso
+preserva o que o enunciado exige — o grupo demonstrando que entendeu a
+ferramenta — mesmo que o stack não suba.
+
+Se for preciso usar, diga em voz alta que é uma gravação do ensaio e por quê.
+
+Para regravar, com o stack no ar:
+
+```bash
+make video
+```
+
+O `stack/video.sh` instala Playwright e ffmpeg em `.video/` (fora do Git, uma
+vez só), abre o Grafana num Chrome sem janela, percorre as URLs lidas de
+`snapshot/favoritos.html` e converte o resultado para MP4. É a única parte do
+repositório que precisa de Node.js — nada da demo em si depende disso.
+
+Regrave sempre que trocar a janela gravada, o trace escolhido ou o roteiro: o
+script lê os favoritos do arquivo, então o vídeo acompanha.
+
+Guarde em dois lugares: no disco da máquina e em um pendrive. E **teste o
+arquivo no player da máquina que vai apresentar** antes do dia.
 
 ## Problemas e respostas
 
@@ -154,6 +175,7 @@ o span; o profiler entra a partir dali). Não abrir o Pyroscope para
 1. Clicar no favorito de novo. Resolve a maioria dos casos.
 2. Pular para o próximo passo do roteiro e voltar depois, se der.
 3. Trocar de máquina, se a segunda estiver com o stack no ar.
-4. Vídeo de backup, dizendo em voz alta que é uma gravação do ensaio.
+4. Vídeo de backup (`snapshot/demo-backup.mp4`), narrando por cima e dizendo
+   em voz alta que é uma gravação do ensaio.
 
 Nunca: abrir terminal e depurar com a turma esperando.
