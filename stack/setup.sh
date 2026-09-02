@@ -69,6 +69,40 @@ else
   ok "block_retention: $RETENCAO_ALVO em $ENCONTRADOS lugares"
 fi
 
+# --- 2b. janela de consulta do Tempo ---------------------------------------
+
+# Armadilha sutil: por padrão o Tempo só vai ao armazenamento de blocos para
+# dados com MAIS de 15 minutos (query_frontend.search.query_backend_after).
+# Dados mais recentes que isso são servidos apenas pelo live-store, que fica
+# vazio depois de um restore.
+#
+# Na prática isso significa que, logo depois de gravar e congelar, a busca por
+# traces devolve zero — e parece que o congelamento falhou, quando na verdade a
+# janela só é jovem demais. No dia da apresentação o problema não apareceria
+# (a janela tem dias), mas o ensaio inteiro seria feito no escuro.
+#
+# Reduzir o valor faz o Tempo consultar os blocos quase imediatamente. Não dá
+# para zerar: o Tempo se recusa a subir com
+#   "QueryBackendAfter (0s) must be greater than query end cutoff (30s)".
+# 1m é o menor valor redondo aceito. Para um dataset deste tamanho o custo de
+# sempre ir aos blocos é irrelevante.
+if grep -q "query_backend_after" "$TEMPO_YAML"; then
+  info "query_backend_after já configurado; mantido"
+else
+  info "Reduzindo query_backend_after para 1m (busca nos blocos restaurados)"
+  cat >> "$TEMPO_YAML" <<'FIM_YAML'
+
+# Adicionado por stack/setup.sh — ver docs/04-demo-reprodutivel.md.
+# O padrão é 15m: uma janela congelada com menos de 15 minutos de idade não
+# aparece na busca por traces, porque nesse intervalo o Tempo consulta só o
+# live-store, que fica vazio depois de um restore.
+query_frontend:
+  search:
+    query_backend_after: 1m
+FIM_YAML
+  ok "query_backend_after: 1m"
+fi
+
 # --- 3. conferências de escopo ---------------------------------------------
 
 # Armadilha número 2: o serviço k6 sobe por padrão, com restart: always.

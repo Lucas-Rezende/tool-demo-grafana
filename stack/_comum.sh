@@ -106,7 +106,14 @@ dc() {
 # rodando para sempre em segundo plano.
 subir_sem_k6() {
   preparar_volumes
-  dc up -d --scale k6=0 "$@"
+  # --wait é necessário, não cosmético: sem ele o Compose às vezes devolve o
+  # controle com containers ainda em "Created", esperando o healthcheck da
+  # fila. Na prática o mythical-requester e o mythical-recorder ficam parados
+  # e a aplicação não gera tráfego nenhum.
+  if ! dc up -d --scale k6=0 --wait --wait-timeout 240 "$@"; then
+    aviso "o Compose não confirmou todos os containers em 4 minutos."
+    aviso "siga assim mesmo: 'make verify' dirá exatamente o que ficou de fora."
+  fi
 }
 
 # --- volumes ----------------------------------------------------------------
@@ -161,6 +168,54 @@ importar_volume() {
   local nome="$1" origem="$2"
   docker_container run --rm -i -v "$(vol "$nome"):/dados" alpine:3.22 \
     tar xzf - -C /dados < "$origem"
+}
+
+# --- consultas às fontes de dados -------------------------------------------
+#
+# Ficam aqui, e não em verify.sh, porque restore.sh usa as mesmas consultas
+# para saber quando o stack terminou de aquecer. Todas devolvem 0 quando a
+# fonte responde COM dado, e diferente de 0 em qualquer outro caso.
+#
+# O critério é sempre o mesmo: resposta de sucesso e conjunto de resultados
+# não vazio. Um `"result":[]` é uma resposta perfeitamente válida do ponto de
+# vista do protocolo e completamente inútil do ponto de vista da demo.
+
+grafana_saudavel() {
+  curl -fsS --max-time 10 "http://localhost:$PORTA_GRAFANA/api/health" 2>/dev/null \
+    | grep -q '"database": *"ok"'
+}
+
+# $1 = instante (epoch s), $2 = consulta PromQL
+mimir_responde() {
+  local r
+  r="$(curl -fsS --max-time 15 -G \
+        --data-urlencode "query=$2" \
+        --data-urlencode "time=$1" \
+        "http://localhost:$PORTA_MIMIR/prometheus/api/v1/query" 2>/dev/null)" || return 1
+  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
+}
+
+# $1 = início (epoch ns), $2 = fim (epoch ns), $3 = consulta LogQL
+loki_responde() {
+  local r
+  r="$(curl -fsS --max-time 30 -G \
+        --data-urlencode "query=$3" \
+        --data-urlencode "start=$1" \
+        --data-urlencode "end=$2" \
+        --data-urlencode 'limit=1' \
+        "http://localhost:$PORTA_LOKI/loki/api/v1/query_range" 2>/dev/null)" || return 1
+  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
+}
+
+# $1 = início (epoch s), $2 = fim (epoch s), $3 = consulta TraceQL
+tempo_responde() {
+  curl -fsS --max-time 30 -G \
+    --data-urlencode "q=$3" \
+    --data-urlencode "start=$1" \
+    --data-urlencode "end=$2" \
+    --data-urlencode 'limit=1' \
+    "http://localhost:$PORTA_TEMPO/api/search" 2>/dev/null \
+  | grep -q '"traceID"'
 }
 
 # --- tempo ------------------------------------------------------------------

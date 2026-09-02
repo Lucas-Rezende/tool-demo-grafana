@@ -2,6 +2,9 @@
 # Semáforo de cinco minutos: prova que a janela congelada ainda responde em
 # todas as fontes de dados usadas na demo. Rode ANTES de subir ao projetor.
 #
+# As consultas em si moram em stack/_comum.sh, porque restore.sh usa as mesmas
+# para saber quando o stack terminou de aquecer.
+#
 # Uso:
 #   ./stack/verify.sh                       usa snapshot/janela.env
 #   ./stack/verify.sh <inicio_ms> <fim_ms>  usa a janela informada
@@ -54,90 +57,12 @@ checar() {
   fi
 }
 
-# --- containers -------------------------------------------------------------
-
 servico_no_ar() {
   dc ps --services --filter status=running 2>/dev/null | grep -qx "$1"
 }
 
 k6_fora_do_ar() {
   ! servico_no_ar k6
-}
-
-# --- fontes de dados --------------------------------------------------------
-
-grafana_saudavel() {
-  curl -fsS --max-time 10 "http://localhost:$PORTA_GRAFANA/api/health" 2>/dev/null \
-    | grep -q '"database": *"ok"'
-}
-
-# Métrica gerada pelo metrics-generator do Tempo, usada pelos painéis de erro
-# e latência do MLT Dashboard. Se ela responde no meio da janela, os painéis
-# principais da demo vão desenhar.
-mimir_tem_metricas() {
-  local r
-  r="$(curl -fsS --max-time 15 -G \
-        --data-urlencode 'query=count(traces_spanmetrics_calls_total)' \
-        --data-urlencode "time=$MEIO_S" \
-        "http://localhost:$PORTA_MIMIR/prometheus/api/v1/query" 2>/dev/null)" || return 1
-  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
-}
-
-# Métrica exposta pela própria aplicação (painel de percentil 95).
-mimir_tem_metricas_da_app() {
-  local r
-  r="$(curl -fsS --max-time 15 -G \
-        --data-urlencode 'query=count(mythical_request_times_bucket)' \
-        --data-urlencode "time=$MEIO_S" \
-        "http://localhost:$PORTA_MIMIR/prometheus/api/v1/query" 2>/dev/null)" || return 1
-  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
-}
-
-loki_tem_logs() {
-  local r
-  r="$(curl -fsS --max-time 20 -G \
-        --data-urlencode 'query={job="alloy"}' \
-        --data-urlencode "start=$INICIO_NS" \
-        --data-urlencode "end=$FIM_NS" \
-        --data-urlencode 'limit=1' \
-        "http://localhost:$PORTA_LOKI/loki/api/v1/query_range" 2>/dev/null)" || return 1
-  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
-}
-
-# O bloco 2 da apresentação depende de encontrar log de erro dentro da janela.
-loki_tem_erros() {
-  local r
-  r="$(curl -fsS --max-time 30 -G \
-        --data-urlencode 'query={job="alloy"} | logfmt | status="Error"' \
-        --data-urlencode "start=$INICIO_NS" \
-        --data-urlencode "end=$FIM_NS" \
-        --data-urlencode 'limit=1' \
-        "http://localhost:$PORTA_LOKI/loki/api/v1/query_range" 2>/dev/null)" || return 1
-  echo "$r" | grep -q '"status":"success"' && ! echo "$r" | grep -q '"result":\[\]'
-}
-
-# Esta é a checagem mais importante: é o Tempo que sofre com block_retention.
-# Se ela falhar e as outras passarem, quase certamente o setup.sh não rodou e
-# a retenção continua em 1h.
-tempo_tem_traces() {
-  curl -fsS --max-time 30 -G \
-    --data-urlencode 'q={}' \
-    --data-urlencode "start=$INICIO_S" \
-    --data-urlencode "end=$FIM_S" \
-    --data-urlencode 'limit=1' \
-    "http://localhost:$PORTA_TEMPO/api/search" 2>/dev/null \
-  | grep -q '"traceID"'
-}
-
-# Spans com erro são o clímax do bloco 2. Sem isso, não há cascata para mostrar.
-tempo_tem_erros() {
-  curl -fsS --max-time 30 -G \
-    --data-urlencode 'q={status=error}' \
-    --data-urlencode "start=$INICIO_S" \
-    --data-urlencode "end=$FIM_S" \
-    --data-urlencode 'limit=1' \
-    "http://localhost:$PORTA_TEMPO/api/search" 2>/dev/null \
-  | grep -q '"traceID"'
 }
 
 echo "${NEGRITO}Containers${RESET}"
@@ -148,13 +73,29 @@ checar "k6 FORA do ar (escopo do trabalho)" k6_fora_do_ar
 
 echo
 echo "${NEGRITO}Fontes de dados na janela congelada${RESET}"
-checar "Grafana  — /api/health"                grafana_saudavel
-checar "Mimir    — traces_spanmetrics_calls_total" mimir_tem_metricas
-checar "Mimir    — mythical_request_times_bucket"  mimir_tem_metricas_da_app
-checar "Loki     — linhas de log"                  loki_tem_logs
-checar "Loki     — linhas com status=Error"        loki_tem_erros
-checar "Tempo    — traces na janela"               tempo_tem_traces
-checar "Tempo    — spans com erro"                 tempo_tem_erros
+
+# Métrica gerada pelo metrics-generator do Tempo, usada pelos painéis de erro e
+# de latência do MLT Dashboard. Se ela responde no meio da janela, os painéis
+# principais da demo vão desenhar.
+checar "Grafana  — /api/health" \
+  grafana_saudavel
+checar "Mimir    — traces_spanmetrics_calls_total" \
+  mimir_responde "$MEIO_S" 'count(traces_spanmetrics_calls_total)'
+# Métrica exposta pela própria aplicação (painel de percentil 95).
+checar "Mimir    — mythical_request_times_bucket" \
+  mimir_responde "$MEIO_S" 'count(mythical_request_times_bucket)'
+checar "Loki     — linhas de log" \
+  loki_responde "$INICIO_NS" "$FIM_NS" '{job="alloy"}'
+# O bloco 2 da apresentação depende de encontrar log de erro dentro da janela.
+checar "Loki     — linhas com status=Error" \
+  loki_responde "$INICIO_NS" "$FIM_NS" '{job="alloy"} | logfmt | status="Error"'
+# Esta é a checagem mais importante: é o Tempo que sofre com block_retention e
+# com query_backend_after.
+checar "Tempo    — traces na janela" \
+  tempo_responde "$INICIO_S" "$FIM_S" '{}'
+# Spans com erro são o clímax do bloco 2. Sem isso, não há cascata para mostrar.
+checar "Tempo    — spans com erro" \
+  tempo_responde "$INICIO_S" "$FIM_S" '{status=error}'
 
 echo
 if [ "$FALHAS" -eq 0 ]; then
@@ -166,14 +107,29 @@ printf '%s %s verificação(ões) falharam.%s\n\n' "$VERMELHO$NEGRITO" "$FALHAS"
 cat <<'FIM'
   Como interpretar:
 
-  - Só o Tempo falhou:      quase certamente o block_retention voltou a 1h.
-                            Rode 'make setup' e grave a janela de novo.
-  - Tudo falhou:            o stack não subiu ou a janela informada está errada.
-                            Confira 'make restore' e os epochs em stack/JANELA.md.
-  - Só 'spans com erro':    a janela pegou um período calmo demais.
-                            Regrave com mais tempo ('make record --do-zero').
-  - k6 no ar:               alguém subiu o stack sem --scale k6=0.
-                            Use 'make restore'; nunca 'docker compose up' direto.
+  - Acabou de rodar o restore:  espere um minuto e rode de novo. Loki e Tempo
+                                levam alguns segundos para carregar índice e
+                                lista de blocos depois de subir.
+
+  - Só o Tempo falhou:          duas causas possíveis, nesta ordem.
+                                (a) A janela tem menos de 15 min de idade e o
+                                    query_backend_after não foi reduzido.
+                                    Rode 'make setup' e depois 'make restore'.
+                                (b) O block_retention voltou a 1h, normalmente
+                                    por um 'git pull' em intro-to-mltp/.
+                                    Rode 'make setup' e regrave a janela.
+
+  - Tudo falhou:                o stack não subiu ou a janela está errada.
+                                Confira 'make restore' e stack/JANELA.md.
+
+  - Só 'spans com erro':        a janela pegou um período calmo demais.
+                                Regrave com mais tempo ('make record --do-zero').
+
+  - Algum mythical-* fora:      o Compose devolveu o controle com o container
+                                em 'Created'. Rode 'make restore' de novo.
+
+  - k6 no ar:                   alguém subiu o stack sem --scale k6=0.
+                                Use 'make restore'; nunca 'docker compose up'.
 
   Plano B em docs/07-plano-de-contingencia.md.
 FIM

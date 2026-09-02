@@ -59,6 +59,34 @@ if [ "$SAUDAVEL" != "1" ]; then
 fi
 ok "Grafana saudável em http://localhost:$PORTA_GRAFANA"
 
+# Grafana saudável não significa dados consultáveis. O Loki ainda precisa
+# carregar o índice TSDB restaurado e o Tempo precisa concluir o primeiro
+# blocklist poll. Sem esta espera, um `make verify` logo depois do restore
+# acusa falha onde não há — e o grupo perde tempo caçando defeito inexistente.
+if [ -f "$SNAPSHOT_DIR/janela.env" ]; then
+  # shellcheck disable=SC1091
+  source "$SNAPSHOT_DIR/janela.env"
+fi
+if [ -n "${JANELA_INICIO_MS:-}" ] && [ -n "${JANELA_FIM_MS:-}" ]; then
+  info "Aquecendo Loki e Tempo na janela congelada"
+  AQUECIDO=0
+  for _ in $(seq 1 40); do
+    if loki_responde "${JANELA_INICIO_MS}000000" "${JANELA_FIM_MS}000000" '{job="alloy"}'        && tempo_responde "$(( JANELA_INICIO_MS / 1000 ))" "$(( JANELA_FIM_MS / 1000 ))" '{}'; then
+      AQUECIDO=1
+      break
+    fi
+    sleep 3
+  done
+  if [ "$AQUECIDO" = "1" ]; then
+    ok "Loki e Tempo respondendo na janela"
+  else
+    aviso "Loki ou Tempo ainda não responderam na janela congelada."
+    aviso "Rode 'make verify' para ver exatamente qual fonte está faltando."
+  fi
+else
+  aviso "sem snapshot/janela.env; pulando o aquecimento das fontes de dados."
+fi
+
 if dc ps --services --filter status=running 2>/dev/null | grep -qx k6; then
   erro "o container k6 subiu. Isso não deveria acontecer com --scale k6=0."
   exit 1
