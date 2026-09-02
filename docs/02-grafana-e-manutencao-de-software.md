@@ -26,7 +26,8 @@ duas hipóteses pelo caminho:
 
 1. **Métrica.** Diz *que* existe erro (~5%) e, ao filtrar por endpoint com uma
    variável de template, derruba a primeira hipótese: os cinco endpoints ficam
-   entre 4,24% e 4,99%, nenhum se destaca. O erro é transversal. A mesma tela
+   na mesma faixa, e qual deles aparece no topo muda conforme o intervalo —
+   ruído, não sinal. O erro é transversal. A mesma tela
    mostra um segundo fato, aparentemente separado: a latência está na casa dos
    segundos.
 2. **Log.** Derruba a segunda hipótese, que é a mais tentadora — a de que os

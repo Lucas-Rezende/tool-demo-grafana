@@ -100,7 +100,8 @@ Medidos sobre a janela gravada. Confira e atualize se regravarem.
 |---|---|
 | Linhas de log na janela | 42 898 `Ok` + 2 412 `Error` |
 | Taxa de erro | **5,3%** (o painel `Overall Error %age` marca ~5%) |
-| Erro por endpoint | `/manticore` 4,99% · `/owlbear` 4,91% · `/unicorn` 4,78% · `/beholder` 4,68% · `/illithid` 4,24% — **sem destaque** |
+| Erro por endpoint, média de 30 min | `/manticore` 4,99% · `/owlbear` 4,91% · `/unicorn` 4,78% · `/beholder` 4,68% · `/illithid` 4,24% |
+| Erro por endpoint, no painel (janela de 5 min) | oscila entre ~4% e ~6%; **qual está no topo muda** conforme o instante |
 | `95th Percentile Response Latencies` | ~15 000 ms (15 s) |
 | Duração mediana, `status="Ok"` | ~8,8 s |
 | Duração mediana, `status="Error"` | ~8,3 s |

@@ -74,8 +74,12 @@ Percorrer, nesta ordem:
 
 2. **Erro por endpoint.** O painel `Error Percentages by Target` mostra os
    cinco endpoints — `/beholder`, `/illithid`, `/manticore`, `/owlbear`,
-   `/unicorn`. Na janela gravada eles ficam entre **4,24% e 4,99%**.
-   **Nenhum se destaca.**
+   `/unicorn` — todos na mesma faixa, entre **4% e 6%**.
+
+   O painel calcula sobre uma janela de 5 minutos, então os números balançam
+   conforme o instante. **Qual endpoint está no topo muda.** Isso é o ponto:
+   não há um culpado, há ruído em torno da mesma taxa. Média de 30 minutos na
+   janela gravada: 4,24% a 4,99%.
 
 3. **Variável de template, usada para descartar uma hipótese.**
    🔖 **Favorito 2** — o mesmo dashboard com `httpEndpoint` fixado em
@@ -85,6 +89,11 @@ Percorrer, nesta ordem:
    pessoa é "deve ser um endpoint específico", e a variável de template é o
    que permite testar isso em dois segundos. O resultado é que a hipótese
    **cai**: o erro é transversal.
+
+   Se alguém apontar que um dos endpoints está mais alto na tela, essa é a
+   deixa perfeita: mexa no seletor de tempo do painel — não no da janela — ou
+   compare com a média de 30 minutos, e mostre que o topo troca de lugar.
+   Confundir ruído com sinal é como se erra esse diagnóstico na vida real.
 
    Aproveitar para explicar que trocar o seletor reescreve todas as consultas
    da tela de uma vez, e que existe também um seletor por `service.version`,
