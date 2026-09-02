@@ -51,22 +51,52 @@ Regras que valem para todos os links:
 
 ## 3. Favoritos, na ordem do roteiro
 
+Gere tudo de uma vez, com o stack no ar:
+
+```bash
+ENDPOINT=/beholder TRACE=<trace-id> make urls
+```
+
+O script imprime as sete URLs e grava `snapshot/favoritos.html`, importável no
+navegador (Favoritos → Gerenciar → Importar de arquivo HTML). Cole as URLs
+aqui também, para o caso de alguém precisar montar à mão.
+
 | # | Bloco | Quem | O que mostra | URL congelada |
 |---|---|---|---|---|
-| 1 | Abertura | Pessoa 1 | Cópia do MLT Dashboard, visão geral | `PREENCHER` |
-| 2 | Abertura | Pessoa 1 | Mesmo dashboard com `var-httpEndpoint` filtrado no endpoint problemático | `PREENCHER` |
+| 1 | Abertura | Pessoa 1 | `MLT Demo`, janela completa. Erro geral ~5% | `PREENCHER` |
+| 2 | Abertura | Pessoa 1 | Mesmo dashboard com `var-httpEndpoint=/beholder`, para **derrubar** a hipótese de que o erro é de um endpoint só | `PREENCHER` |
 | 3 | Logs | Pessoa 2 | Explore + Loki, `{job="alloy"} \| logfmt \| status="Error"` | `PREENCHER` |
 | 4 | Logs | Pessoa 2 | Mesma query agregada: `sum by (svc) (count_over_time({job="alloy"} \| logfmt \| status="Error" [1m]))` | `PREENCHER` |
-| 5 | Traces | Pessoa 2 | Trace específico aberto no Tempo (cascata de spans) | `PREENCHER` |
+| 5 | Traces | Pessoa 2 | Trace específico no Tempo — a cascata até o span do Postgres | `PREENCHER` |
 | 6 | Alertas | Pessoa 3 | Lista de regras de alerta | `PREENCHER` |
-| 7 | Alertas | Pessoa 3 | Regra sintética em transição de estado | `PREENCHER` |
+| 7 | Alertas | Pessoa 3 | Regra sintética, para mostrar a transição de estado | `PREENCHER` |
 
-> O trace ID do favorito 5 precisa ser um trace **de dentro da janela** e que
-> tenha span com erro. Escolha durante o ensaio e anote aqui:
->
-> - Trace ID escolhido: `PREENCHER`
-> - Endpoint: `PREENCHER`
-> - Span culpado: `PREENCHER`
+> Ao abrir o favorito 1, **role a tela uma vez**. O Grafana só renderiza o
+> painel quando ele entra na área visível.
+
+### O trace do favorito 5
+
+Precisa ser um trace **de dentro da janela**, com span em erro. Escolha durante
+o ensaio e anote:
+
+- Trace ID: `PREENCHER`
+- Endpoint: `PREENCHER` (ex.: `/beholder`)
+- Duração total: `PREENCHER` (~20 s nos casos com erro)
+- Span culpado: `pg.query:INSERT postgres`, no serviço `mythical-server`
+- SQL no span: `INSERT INTO <endpoint>(name) VALUES ($1)`
+- Mensagem: `null value in column "name" ... violates not-null constraint`
+  (SQLSTATE 23502)
+
+### Números para citar de cor
+
+Medidos sobre a janela gravada. Confira e atualize se regravarem.
+
+| Medida | Valor |
+|---|---|
+| Erro geral | `PREENCHER` % |
+| Erro por endpoint | entre `PREENCHER` % e `PREENCHER` % — sem destaque |
+| Duração mediana, `status="Ok"` | `PREENCHER` ms |
+| Duração mediana, `status="Error"` | `PREENCHER` ms |
 
 ## 4. Conferência final (marcar antes de apresentar)
 
