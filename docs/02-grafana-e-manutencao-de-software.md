@@ -20,32 +20,40 @@ real, de concorrência real, de latência de rede real e de um estado acumulado
 que não existe na máquina de quem desenvolve.
 
 O caso da nossa demo é exatamente esse. Cerca de 5% das requisições falham com
-500, de forma espalhada por todos os endpoints, e a mensagem que o serviço de
-fachada devolve não diz qual é a causa. A investigação que a demonstração
-percorre é:
+500, espalhadas por todos os endpoints, e a mensagem que o serviço de fachada
+devolve não diz qual é a causa. A investigação percorre três sinais e derruba
+duas hipóteses pelo caminho:
 
-1. **Métrica** diz *que* existe erro — e, ao filtrar por endpoint com uma
-   variável de template, **derruba** a primeira hipótese: não é um endpoint
-   específico, é transversal.
-2. **Log** diz *como* o erro se manifesta: as requisições que falham levam
-   ~11 segundos, contra ~30 milissegundos das que dão certo. O erro é lento, e
-   isso a média da métrica escondia.
-3. **Trace** diz *onde*: quase todo o tempo está dentro de um único span,
-   `pg.query:INSERT postgres`, que termina em erro.
+1. **Métrica.** Diz *que* existe erro (~5%) e, ao filtrar por endpoint com uma
+   variável de template, derruba a primeira hipótese: os cinco endpoints ficam
+   entre 4,24% e 4,99%, nenhum se destaca. O erro é transversal. A mesma tela
+   mostra um segundo fato, aparentemente separado: a latência está na casa dos
+   segundos.
+2. **Log.** Derruba a segunda hipótese, que é a mais tentadora — a de que os
+   5% que falham são justamente os lentos. Um `quantile_over_time` sobre o
+   campo `dur`, agrupado por status, desenha duas linhas que se sobrepõem ao
+   longo dos 45 minutos: `Ok` e `Error` têm a mesma distribuição de duração.
+   Falhar e demorar são problemas independentes.
+3. **Trace.** Responde as duas perguntas de uma vez. Quase todo o tempo da
+   requisição está dentro de um único span, `pg.query:INSERT postgres`, e os
+   middlewares da aplicação levam microssegundos. Os atributos desse span
+   entregam o defeito: o SQL é `INSERT INTO owlbear(name) VALUES ($1)` e a
+   mensagem é `null value in column "name" ... violates not-null constraint`
+   (SQLSTATE 23502).
 
-Os atributos desse span fecham o diagnóstico: o SQL é
-`INSERT INTO beholder(name) VALUES ($1)` e a mensagem é
-`null value in column "name" ... violates not-null constraint`. A aplicação
-aceita um `name` nulo e deixa a validação para a constraint do banco.
+Ao final, "às vezes dá 500 e o sistema está lento" virou dois problemas
+nomeados: falta validar `name` antes de chamar o banco, e a chamada ao banco
+está demorando segundos. Isso é diagnóstico de manutenção corretiva feito sobre
+um sistema em execução em vez de sobre um teste.
 
-Ao final, o defeito deixou de ser "às vezes dá 500" e virou "falta validar
-`name` antes de chamar o banco". Isso é diagnóstico de manutenção corretiva
-feito sobre um sistema em execução em vez de sobre um teste.
+Vale notar o tipo do primeiro defeito: a regra violada não está no
+código-fonte, está no schema do banco. Revisão de código e análise estática têm
+dificuldade estrutural com esse tipo de defeito, porque a informação que
+provaria o erro não está no arquivo que elas leem.
 
-Vale notar o tipo de defeito: a regra violada não está no código-fonte, está no
-schema do banco. Revisão de código e análise estática têm dificuldade
-estrutural com esse tipo de defeito, porque a informação que provaria o erro
-não está no arquivo que elas leem.
+E vale notar o método: as duas hipóteses derrubadas valem tanto quanto a
+resposta final. Corrigir o erro esperando que a latência melhorasse teria
+custado uma sprint para descobrir que não melhorou nada.
 
 ## Manutenção perfectiva
 

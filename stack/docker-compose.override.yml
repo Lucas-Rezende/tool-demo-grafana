@@ -63,16 +63,18 @@ services:
       # mimir/mimir.yaml grava TSDB, compactor e regras sob /tmp/mimir.
       - "mimir:/tmp/mimir"
 
-  # As imagens mythical-* usam tag mutável (`...-latest`) no compose oficial.
-  # Rode `make pin` (stack/pin-images.sh) para gerar os digests da máquina que
-  # gravou a janela e cole o bloco abaixo, descomentado. Isso garante que o
-  # dia da apresentação use exatamente a imagem do ensaio.
+  # As imagens mythical-* usam tag mutável (`...-latest`) no compose oficial, e
+  # a Grafana republica essas tags. Se a imagem mudar entre o ensaio e a
+  # apresentação, o comportamento da aplicação pode mudar junto e o dataset
+  # congelado deixa de casar com o que está rodando.
   #
-  # mythical-requester:
-  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
-  # mythical-server:
-  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
-  # mythical-recorder:
-  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
-  # mythical-frontend:
-  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
+  # Os digests abaixo são os que produziram a janela em snapshot/. Para gerar
+  # os de uma nova gravação, rode `make pin` e substitua o bloco.
+  mythical-requester:
+    image: ghcr.io/grafana/intro-to-mltp@sha256:7013d060cd092dd1c928371fbea09d361fd1137907b9b6089e15615f5f5f3533
+  mythical-server:
+    image: ghcr.io/grafana/intro-to-mltp@sha256:359afe4e8eaffa3bf1e84afea55456c96cc443aca76c5fc6f72adf1f69f5e183
+  mythical-recorder:
+    image: ghcr.io/grafana/intro-to-mltp@sha256:00010860619f5887b4b144f499a9a84c9dc9df39ee7b2221d56e8315b8d4e91f
+  mythical-frontend:
+    image: ghcr.io/grafana/intro-to-mltp@sha256:e92da1f06562dabd0b2a18eec3ec36390382699547d177ee542fbec31f8673c5

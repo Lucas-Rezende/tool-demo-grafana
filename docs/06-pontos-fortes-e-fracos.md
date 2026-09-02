@@ -52,10 +52,18 @@ e precisa ser dito com todas as letras: **o Grafana mostra sintoma em execução
 não causa no código.**
 
 Ele não detecta code smell, não mede acoplamento, não encontra dívida técnica,
-não acha vulnerabilidade, não sugere refatoração. Ele diz que o endpoint
-`/unicorn` responde em 800 ms e que 6% das requisições falham. Descobrir *por
-que* o código faz isso continua sendo trabalho de quem lê o código — com ajuda
-de análise estática, de profiler e de depurador, que são outras ferramentas.
+não acha vulnerabilidade, não sugere refatoração.
+
+Na nossa demo, o Grafana chega até a mensagem do Postgres: `null value in
+column "name" ... violates not-null constraint`. Isso é muito, e é onde ele
+para. Ele **não** aponta a linha do serviço que deixou de validar `name`, não
+diz se falta um `if` ou um schema de validação, e não sabe se o mesmo descuido
+se repete em outros lugares do código. Essas perguntas são de quem lê o código,
+com ajuda de análise estática, de revisão e de depurador.
+
+Uma frase que vale dizer: **o Grafana estreita a busca de "o sistema inteiro"
+para "esta chamada"; quem fecha a distância entre "esta chamada" e "esta linha"
+é outra ferramenta.**
 
 Uma equipe que confunde observabilidade com qualidade de código termina com
 dashboards excelentes sobre um sistema que continua difícil de manter.
@@ -105,8 +113,23 @@ porque a métrica que consultavam foi renomeada. Ninguém sabe qual é o
 canônico, e a resposta para "onde vejo a latência do serviço X" passa a ser
 "depende de quem você perguntar".
 
-Este é um problema de manutenção **criado pela própria ferramenta**. Vale
-fechar o ponto ligando ao que foi dito no bloco de abertura:
+Este é um problema de manutenção **criado pela própria ferramenta**.
+
+E não é preciso ir longe para achar um exemplo: **no dashboard oficial que a
+nossa demo usa, um painel está com a unidade errada.** O painel
+`All Endpoint Latencies in ms (Last 10 mins)` calcula a média de
+`traces_spanmetrics_latency_sum / _count`, que o Tempo emite em **segundos**, e
+não declara unidade nenhuma no `fieldConfig`. O título diz milissegundos e o
+número mostrado são segundos — um erro de fator 1000, em um dashboard mantido
+pela própria Grafana Labs. O painel vizinho,
+`Top 10 Highest Endpoint Latencies`, usa a mesma métrica e declara
+`unit: s` corretamente.
+
+Vale mostrar isso na apresentação. É um dashboard que mente em silêncio: não dá
+erro, não fica vermelho, ninguém percebe. É exatamente o apodrecimento que o
+parágrafo seguinte descreve.
+
+Vale fechar o ponto ligando ao que foi dito no bloco de abertura:
 
 > É por isso que o Git Sync existir na versão 13 é relevante: dashboard é
 > software, apodrece como software, e precisa de versionamento e revisão como

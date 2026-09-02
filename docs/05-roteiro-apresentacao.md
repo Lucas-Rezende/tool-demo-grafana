@@ -74,39 +74,44 @@ Percorrer, nesta ordem:
 
 2. **Erro por endpoint.** O painel `Error Percentages by Target` mostra os
    cinco endpoints — `/beholder`, `/illithid`, `/manticore`, `/owlbear`,
-   `/unicorn` — todos entre 4% e 5,5%. **Nenhum se destaca.**
+   `/unicorn`. Na janela gravada eles ficam entre **4,24% e 4,99%**.
+   **Nenhum se destaca.**
 
 3. **Variável de template, usada para descartar uma hipótese.**
    🔖 **Favorito 2** — o mesmo dashboard com `httpEndpoint` fixado em
-   `/beholder`. Este é o momento pedagógico do bloco: a primeira hipótese de
-   qualquer pessoa é "deve ser um endpoint específico", e a variável de
-   template é o que permite testar isso em dois segundos. O resultado é que a
-   hipótese **cai**: o erro é transversal.
+   `/owlbear`, que é o endpoint do trace que aparece no bloco 2.
+
+   Este é o momento pedagógico do bloco: a primeira hipótese de qualquer
+   pessoa é "deve ser um endpoint específico", e a variável de template é o
+   que permite testar isso em dois segundos. O resultado é que a hipótese
+   **cai**: o erro é transversal.
 
    Aproveitar para explicar que trocar o seletor reescreve todas as consultas
    da tela de uma vez, e que existe também um seletor por `service.version`,
    que é o que permite comparar versões implantadas.
 
-4. **Latência — e a pista que sobra.** O painel
+4. **Latência — o segundo fato.** O painel
    `95th Percentile Response Latencies (ms)` marca cerca de **15 000 ms**, ou
-   seja, 15 segundos, em todos os cinco endpoints. Deixar essa pista no ar sem
-   resolver:
+   seja, 15 segundos, em todos os cinco endpoints. O painel
+   `Top 10 Highest Endpoint Latencies` marca cerca de **9 s**.
 
-   > Repare: o percentil 95 está em 15 segundos. Se 95% das requisições
-   > estivessem lentas assim, a aplicação estaria inutilizável — e ela não
-   > está. Então alguma coisa aqui é muito lenta e é minoria. Guardem isso.
+   Ou seja, existem **dois** fatos na tela, não um:
+
+   - cerca de 5% das requisições falham;
+   - a aplicação está lenta, na casa dos segundos.
 
    Aproveitar para dizer que é este tipo de painel que responde "o que vale
-   otimizar" — a manutenção perfectiva do slide anterior — e que percentil
-   existe justamente porque média esconde cauda.
+   otimizar" — a manutenção perfectiva do slide anterior.
 
 ### Fala de transição para a pessoa 2
 
-> A métrica respondeu uma coisa, derrubou uma hipótese e deixou uma pista.
-> Existe erro, cerca de 5%; ele **não** está concentrado num endpoint; e o
-> percentil 95 está em 15 segundos. O que a métrica não diz é qual é o erro,
-> nem se essas duas coisas têm relação. Para isso a gente precisa de outro
-> sinal.
+> A métrica derrubou uma hipótese e deixou dois fatos: cerca de 5% de erro,
+> espalhado por todos os endpoints, e uma latência na casa dos segundos.
+>
+> A pergunta óbvia é se as duas coisas são a mesma coisa — se os 5% que falham
+> são justamente os lentos. É a hipótese que qualquer pessoa levanta aqui. E a
+> métrica agregada **não consegue responder isso**, porque ela já somou tudo.
+> Para responder, precisamos descer um nível.
 
 ---
 
@@ -127,7 +132,7 @@ Explicar em uma frase o modelo do Loki: ele indexa **rótulos**, não o conteúd
 da linha. Por isso a consulta começa por um seletor de fluxo entre chaves e só
 depois filtra.
 
-### 6:00 – 7:00 · O padrão do erro — e a descoberta do bloco
+### 6:00 – 7:00 · O padrão do erro
 
 Ler uma linha de erro em voz alta. São autologs gerados pelo Alloy a partir dos
 traces, em formato logfmt, e têm esta cara:
@@ -139,36 +144,38 @@ span=requester dur=11468966702ns status=Error svc=mythical-requester traceId=e33
 Os campos disponíveis para filtrar são `span`, `dur`, `status`, `svc` e
 `traceId`.
 
-**Aqui está a descoberta que a métrica não deu.** Olhe o `dur`: são
-**11 segundos**. Troque o filtro para `status="Ok"` e leia uma linha normal: o
-`dur` fica na casa das **dezenas de milissegundos**.
+Repare no `dur` da linha de erro: **11 segundos**. É tentador parar aqui e
+concluir que o erro é a causa da lentidão. Não pare.
 
-Na janela gravada, a diferença é esta:
+### 7:00 – 8:00 · 🔖 O gráfico que derruba a segunda hipótese
 
-| | mediana | p95 |
-|---|---|---|
-| `status="Ok"` | ~30 ms | ~93 ms |
-| `status="Error"` | ~11 s | ~23 s |
-
-Dizer em voz alta o que isso significa, e fechar a pista deixada no bloco 1:
-
-> Não é só um erro. É um erro **lento**. A requisição que falha custa umas
-> trezentas vezes mais que a que dá certo. E é isto que estava puxando o
-> percentil 95 para 15 segundos lá no dashboard: não é a aplicação inteira
-> que está lenta, são os 5% que falham. As duas coisas que pareciam separadas
-> são o mesmo defeito.
-
-### 7:00 – 8:00 · 🔖 Agregação de log em gráfico
-
-**🔖 Favorito 4** — a mesma consulta transformada em métrica:
+**🔖 Favorito 4** — a mesma fonte de dados, outra pergunta:
 
 ```logql
-sum by (svc) (count_over_time({job="alloy"} | logfmt | status="Error" [1m]))
+quantile_over_time(0.5,
+  {job="alloy"} | logfmt | svc="mythical-requester" | status=~"Ok|Error"
+  | unwrap duration(dur) [5m]
+) by (status)
 ```
 
-O ponto a fazer: **log vira série temporal**. É o mesmo dado, com outra
-pergunta. Isso costuma surpreender quem só conhece log como texto rolando na
-tela.
+Duas coisas a explicar, nesta ordem.
+
+Primeiro, **o que a consulta faz**: ela extrai o campo `dur` de cada linha,
+converte para número e calcula a mediana em janelas de 5 minutos, separando
+por status. Log virou série temporal. Isso costuma surpreender quem só conhece
+log como texto rolando na tela — e é o que permite comparar duas populações.
+
+Segundo, **o resultado**. O gráfico tem duas linhas, `status="Ok"` e
+`status="Error"`, e elas **se sobrepõem** ao longo dos 45 minutos inteiros.
+Na janela gravada, as medianas ficam em torno de 8 a 11 segundos para as duas.
+
+> A hipótese cai. As requisições que falham **não** são as lentas. Falhar e
+> demorar são dois problemas independentes deste sistema, e a gente só
+> descobriu isso porque conseguiu comparar as duas populações lado a lado.
+>
+> Isso importa para manutenção: se a gente tivesse "corrigido o erro"
+> esperando que a latência melhorasse, teria gasto uma sprint para descobrir
+> que não melhorou nada.
 
 ### 8:00 – 10:00 · 🔖 O salto para o trace
 
@@ -185,42 +192,56 @@ sinais sendo configurada, não mágica.
 **🔖 Favorito 5** — o trace escolhido no ensaio, aberto direto, como plano B
 caso o clique não funcione.
 
-Na cascata de spans, seguir o tempo, não a estrutura:
+O trace escolhido tem **18 spans** em 2 serviços e dura **13,73 s**. Percorrer
+a cascata seguindo o tempo, não a estrutura:
 
-1. **`requester` (mythical-requester), ~22 s, vermelho.** A requisição inteira.
-2. **`POST /:endpoint` (mythical-server), ~14 s, vermelho.** O servidor
-   consumiu a maior parte. Já dá para dizer: o problema não está no cliente.
-3. **`pg.query:INSERT postgres` (mythical-server), ~13,7 s, vermelho.**
-   Praticamente todo o tempo do servidor está dentro de **uma única chamada ao
+1. **`requester` (mythical-requester), 13,72 s, vermelho.** A requisição
+   inteira.
+2. **`POST /:endpoint` (mythical-server), 9,44 s, vermelho.** O servidor
+   consumiu a maior parte.
+3. **Os middlewares: 567 µs, 280 µs, 245 µs, 57 µs.** Microssegundos. Mostrar
+   isso é importante — é a prova de que o código da aplicação **não** é o
+   gargalo.
+4. **`pg.query:INSERT postgres` (mythical-server), 9,44 s, vermelho.** Os
+   9,44 segundos inteiros do servidor estão dentro de **uma única chamada ao
    banco**. Esta é a dependência culpada.
 
-Abrir os atributos desse span. Eles entregam o diagnóstico inteiro:
+Clicar nesse span. O painel de detalhe entrega o diagnóstico inteiro:
 
 ```
-db.system.name  = postgresql
-db.query.text   = INSERT INTO beholder(name) VALUES ($1)
-server.address  = mythical-database
-status.message  = null value in column "name" of relation "beholder"
-                  violates not-null constraint
+pg.query:INSERT postgres
+Service: mythical-server   Duration: 9.44s   Kind: client   Status: error
+Status Message: null value in column "name" of relation "owlbear"
+                violates not-null constraint
+db.query.text:  INSERT INTO owlbear(name) VALUES ($1)
+db.namespace:   postgres
 evento exception: PostgreSQL error of type 'error' occurred (code: 23502)
 ```
 
 Ou seja: **a aplicação aceita um `name` nulo, manda para o banco, e quem
 rejeita é a constraint `NOT NULL`.** A validação que deveria estar na borda da
-aplicação só existe no schema do banco — e essa checagem custa 13 segundos por
-requisição.
+aplicação só existe no schema do banco.
+
+E o trace fecha também o outro fato, o da lentidão: o tempo não está no código
+da aplicação, está esperando o banco. Vale dizer que o mesmo span leva segundos
+**mesmo quando a requisição dá certo** — é o que explica as duas linhas
+sobrepostas do favorito 4.
 
 Dizer o que acabou de acontecer:
 
 > A métrica disse que existe erro e derrubou a hipótese do endpoint. O log
-> disse que o erro é lento. O trace disse exatamente onde: neste serviço, neste
-> span, neste `INSERT`, com este SQL e esta mensagem do Postgres. Saímos de
-> "às vezes dá 500" para "falta validar `name` antes de chamar o banco".
+> derrubou a hipótese de que erro e lentidão eram a mesma coisa. O trace
+> respondeu as duas perguntas de uma vez: o erro é sempre este `INSERT`, com
+> esta mensagem do Postgres; e a lentidão é a espera pelo banco, não o código
+> da aplicação.
 >
-> Isso é diagnóstico de manutenção corretiva feito sobre um sistema em
-> execução. E repare no tipo de defeito: é um defeito que revisão de código não
-> pega com facilidade, porque a regra que está sendo violada não mora no
-> código, mora no schema do banco.
+> Saímos de "às vezes dá 500 e o sistema está lento" para dois problemas
+> nomeados: falta validar `name` antes de chamar o banco, e a chamada ao banco
+> está demorando segundos.
+>
+> Repare no tipo do primeiro defeito: é um defeito que revisão de código não
+> pega com facilidade, porque a regra violada não mora no código, mora no
+> schema do banco.
 
 ### 10:00 – 10:30 · Fala de transição para a pessoa 3
 

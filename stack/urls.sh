@@ -8,7 +8,8 @@
 #   ENDPOINT=/unicorn TRACE=abc123 ./stack/urls.sh
 #
 # Variáveis reconhecidas:
-#   ENDPOINT  endpoint problemático destacado no favorito 2 (ex.: /unicorn)
+#   ENDPOINT  endpoint fixado no favorito 2, para mostrar que o erro NAO se
+#             concentra nele (ex.: /owlbear)
 #   TRACE     trace ID aberto no favorito 5
 #
 # Saída:
@@ -93,7 +94,10 @@ uid_regra_sintetica() {
 # --- consultas usadas na demo ----------------------------------------------
 
 LOGQL_ERROS='{job="alloy"} | logfmt | status="Error"'
-LOGQL_GRAFICO='sum by (svc) (count_over_time({job="alloy"} | logfmt | status="Error" [1m]))'
+# Esta é a consulta que derruba a segunda hipótese da demo: ela desenha a
+# mediana da duração do span `requester` separada por status. As duas linhas
+# se sobrepõem, o que prova que as requisições que falham NÃO são as lentas.
+LOGQL_GRAFICO='quantile_over_time(0.5, {job="alloy"} | logfmt | svc="mythical-requester" | status=~"Ok|Error" | unwrap duration(dur) [5m]) by (status)'
 
 # O Explore carrega o estado inteiro no parâmetro `panes`, em JSON. O intervalo
 # vai como epoch em milissegundos, em string, exatamente como o Grafana grava.
@@ -150,9 +154,9 @@ fi
 
 TITULOS=(
   "1. Abertura — MLT Demo, janela completa"
-  "2. Abertura — MLT Demo filtrado no endpoint problemático"
+  "2. Abertura — MLT Demo filtrado num endpoint (derruba a hipótese)"
   "3. Logs — Explore/Loki, erros"
-  "4. Logs — Explore/Loki, erros agregados em gráfico"
+  "4. Logs — Explore/Loki, duração Ok vs Error (as linhas se sobrepõem)"
   "5. Traces — Explore/Tempo, cascata de spans"
   "6. Alertas — lista de regras"
   "7. Alertas — regra sintética, transição de estado"
