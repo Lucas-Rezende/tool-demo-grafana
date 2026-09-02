@@ -254,24 +254,40 @@ Dizer o que acabou de acontecer:
 
 ### 10:30 – 12:00 · 🔖 Regras de alerta
 
-**🔖 Favorito 6** — a lista de regras de alerta.
+**🔖 Favorito 6** — a lista de regras, já em modo lista, mostrando as duas.
 
 1. Abrir a regra **realista** (`Taxa de erro acima de 5%`). Mostrar as três
-   partes: consulta, condição, roteamento da notificação. Explicar que ela foi
+   partes: consulta, condição e roteamento da notificação. Dizer que ela foi
    escrita sobre a mesma métrica do painel — é a mesma consulta, com uma
    condição em cima.
 
-2. Explicar, sem rodeios, a limitação da demo:
+2. Explicar a diferença de semântica de tempo, que é o ponto conceitual do
+   bloco:
 
-   > Os dados desta demonstração são de uma janela gravada. Uma regra de alerta
-   > avalia a consulta agora, então esta regra aqui não encontra dado no
-   > presente e fica em `No Data` em vez de disparar. É uma limitação do nosso
-   > dataset congelado, não da ferramenta.
+   > Um dashboard consulta o intervalo que você pedir, inclusive no passado.
+   > Uma regra de alerta não: o motor roda a consulta **agora**, a cada 10
+   > segundos. Então esta regra aqui **não** está olhando a janela gravada que
+   > vocês viram no dashboard. Ela está olhando o tráfego que esta aplicação
+   > começou a gerar quando a gente subiu o stack, uns quinze minutos atrás.
+   >
+   > São duas semânticas de tempo diferentes dentro da mesma ferramenta, e
+   > confundir as duas é um erro comum quando se começa a escrever alerta.
+
+   Ler o estado que estiver na tela — normalmente `Normal`, às vezes `Pending`
+   ou `Alerting` se o tráfego novo passar de 5%. **Não prometa um estado
+   específico antes de olhar.** Logo depois de um `restore`, antes de a janela
+   de 5 minutos encher, ela fica em `Pending (NoData)`, que é o que apareceria
+   se o dado tivesse mesmo parado.
 
 3. **🔖 Favorito 7** — a regra **sintética**, nomeada
    `[SINTÉTICA] Demonstração de transição de estado`. Dizer que ela usa
    `vector(1) > 0`, que não depende de dado nenhum, e que existe só para tornar
-   visível o ciclo de estados. Mostrar ao vivo `Normal → Pending → Alerting`.
+   visível o ciclo de estados. Mostrar `Normal → Pending → Alerting`: com
+   avaliação a cada 10 s e pendência de 30 s, o ciclo fecha em menos de um
+   minuto.
+
+   Dizer em voz alta que ela é sintética. Custa cinco segundos e é a diferença
+   entre uma demo bem-feita e uma demo que engana.
 
 4. Comentar em uma frase o roteamento e o silenciamento: para onde a
    notificação vai, e como silenciar durante uma janela de manutenção

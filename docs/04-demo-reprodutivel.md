@@ -340,14 +340,31 @@ Checklist final em [`stack/JANELA.md`](../stack/JANELA.md), seção 4.
 
 Aqui há um problema real e ele precisa ser explicado, não escondido.
 
-Uma regra de alerta avalia uma consulta **agora**. Como os dados param no
-passado, uma regra escrita sobre "os últimos 5 minutos" não encontra série
-nenhuma e vai para o estado `No Data`, não para `Alerting`. Mostrar isso sem
-explicar parece um erro; explicar transforma em conteúdo.
+Um dashboard consulta o intervalo que você pedir, inclusive no passado. Uma
+**regra de alerta não**: o motor de avaliação roda a consulta *agora*, a cada
+intervalo de avaliação. São duas semânticas de tempo diferentes dentro da mesma
+ferramenta, e é isso que a demo precisa deixar claro.
 
-A demo usa **as duas saídas**, nesta ordem.
+A consequência prática, medida na nossa janela:
 
-### Regra 1 — realista, para explicar a anatomia
+| Momento | Estado da regra realista | Por quê |
+|---|---|---|
+| Logo após `make restore` | `Pending (NoData)` | o `increase(...[5m])` ainda não tem 5 minutos de dado novo |
+| Depois de ~10 min no ar | `Normal` | o stack voltou a gerar tráfego e a regra passou a avaliar **esse** tráfego |
+
+Repare no segundo caso: a regra **nunca** está avaliando a janela congelada que
+está no dashboard ao lado. Ela avalia o presente, e o presente é o tráfego que
+a aplicação começou a gerar quando o stack subiu.
+
+Como o bloco 3 acontece uns 15 minutos depois do `restore`, o estado que vai
+aparecer no projetor é normalmente `Normal`. Se a taxa de erro do tráfego novo
+passar de 5%, pode aparecer `Pending` ou `Alerting`. Qualquer um dos três serve
+para a fala — o que não pode acontecer é o grupo prometer um estado e a tela
+mostrar outro.
+
+A demo usa **duas regras**, por motivos diferentes.
+
+### Regra 1 — realista, para explicar a anatomia e a semântica de tempo
 
 Escrita sobre a métrica de erro do serviço, a mesma do painel do dashboard:
 
@@ -359,19 +376,14 @@ Escrita sobre a métrica de erro do serviço, a mesma do painel do dashboard:
 ) * 100
 ```
 
-com condição `IS ABOVE 5`.
+com condição `IS ABOVE 5`, período de pendência de 5 minutos e
+`noDataState: NoData`.
 
-Ela serve para mostrar, no editor de regras, **as três partes de um alerta**: a
-consulta, a condição e o roteamento da notificação. Abra também o histórico da
-regra com o intervalo absoluto da janela: ali dá para ver a série que teria
-disparado.
+Ela serve para mostrar, no editor de regras, **as três partes de um alerta** —
+a consulta, a condição e o roteamento da notificação — e para explicar a
+diferença de semântica de tempo entre painel e regra.
 
-O que ela **não** faz é mudar de estado ao vivo — e é exatamente isso que a
-pessoa 3 explica: com dados congelados, o motor de avaliação olha para o
-presente e não encontra dado. É uma limitação honesta da demo, não da
-ferramenta.
-
-Nomeie-a de forma direta, por exemplo `Taxa de erro acima de 5%`.
+Nomeie-a de forma direta: `Taxa de erro acima de 5%`.
 
 ### Regra 2 — sintética, para mostrar a transição ao vivo
 
@@ -386,11 +398,10 @@ e condição `IS ABOVE 0`.
 `vector(1)` é uma função do PromQL que devolve o valor constante 1 no instante
 avaliado. Ela não depende de dado nenhum: funciona em qualquer máquina, com
 qualquer janela, inclusive com o Mimir recém-restaurado. Com intervalo de
-avaliação de 10 segundos e período de pendência de 30 segundos, dá para ver o
-ciclo completo `Normal → Pending → Alerting` em menos de um minuto, ao vivo, na
-lista de regras.
+avaliação de 10 segundos e período de pendência de 30 segundos, o ciclo
+`Normal → Pending → Alerting` acontece em menos de um minuto — verificado.
 
-**Nomeie de forma honesta.** Sugestão:
+**Nomeie de forma honesta.** A que está no snapshot chama-se:
 
 ```
 [SINTÉTICA] Demonstração de transição de estado — não é uma condição real
@@ -449,7 +460,7 @@ Grafana aceita, e o que torna a transição de estado visível ao vivo.
 
 | Regra | Condição | Pending | Comportamento na demo |
 |---|---|---|---|
-| `Taxa de erro acima de 5%` | erro % `> 5` sobre `traces_spanmetrics_calls_total` | 5m | fica em `No Data`, como esperado |
+| `Taxa de erro acima de 5%` | erro % `> 5` sobre `traces_spanmetrics_calls_total` | 5m | `Pending (NoData)` nos primeiros minutos, `Normal` depois |
 | `[SINTÉTICA] Demonstração de transição de estado — não é uma condição real` | `vector(1) > 0` | 30s | `Normal → Pending → Alerting` em ~40 s |
 
 As duas foram criadas por

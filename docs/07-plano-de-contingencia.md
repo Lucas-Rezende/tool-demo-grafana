@@ -105,11 +105,17 @@ docker compose -f intro-to-mltp/docker-compose.yml \
                rm -sf k6
 ```
 
-### A regra de alerta realista aparece em No Data
+### A regra de alerta realista está num estado inesperado
 
-**Isso é esperado**, não é falha. Está explicado em
-[`04-demo-reprodutivel.md`](04-demo-reprodutivel.md), seção de alertas, e a
-fala da pessoa 3 já cobre. A regra sintética é que mostra a transição ao vivo.
+**Não é falha.** Uma regra de alerta avalia o presente, e o presente é o
+tráfego que a aplicação voltou a gerar quando o stack subiu — não a janela
+congelada que está no dashboard. Dependendo de quanto tempo passou desde o
+`restore`, ela aparece em `Pending (NoData)` (nos primeiros minutos) ou em
+`Normal` (depois disso), e pode ir a `Alerting` se o tráfego novo passar de 5%.
+
+A fala da pessoa 3 já cobre os três casos: o combinado é **ler o estado que
+está na tela**, não prometer um antes de olhar. A regra sintética é que mostra
+a transição de forma determinística.
 
 ### O dashboard copiado sumiu
 
