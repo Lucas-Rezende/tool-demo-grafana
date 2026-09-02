@@ -198,19 +198,23 @@ não subiu e imprime o **epoch em milissegundos do início da janela**. Esse
 número é anotado em `snapshot/janela.env` e precisa ser copiado para
 `stack/JANELA.md`.
 
-Enquanto os 45 minutos correm, use o tempo para montar o que precisa ficar
-salvo dentro do Grafana — tudo isso vive no volume `grafana` e será congelado
-junto:
+Enquanto os 45 minutos correm, monte o que precisa ficar salvo dentro do
+Grafana — tudo isso vive no volume `grafana` e será congelado junto:
 
 1. **A cópia do dashboard.** Abra o `MLT Dashboard` e use *Export* / *Import*
-   (ou "Save as") para criar `MLT — Demo`. O original é provisionado e não
-   aceita alterações salvas.
+   (ou "Save as") para criar a cópia. O original é provisionado e não aceita
+   alterações salvas.
 2. **As duas regras de alerta**, descritas na seção sobre alertas mais abaixo.
 3. **Nada de Pyroscope e nada do dashboard do k6** (ver
    `03-escopo-e-fronteiras.md`).
 
 Não é preciso gerar carga: o `mythical-requester` produz tráfego e erros
 sozinho, continuamente.
+
+> **O `snapshot/` distribuído para o grupo já vem com os três itens prontos.**
+> Só é preciso refazê-los se vocês regravarem a janela do zero. O que existe
+> lá dentro está descrito na seção "O que já vem pronto no snapshot", no fim
+> deste documento.
 
 Passados os ~45 minutos:
 
@@ -252,6 +256,18 @@ Regras:
 - Salve cada link como **favorito do navegador, numerado na ordem do roteiro**.
   No dia, a demo vira uma sequência de cliques na barra de favoritos, sem
   digitação e sem mexer no seletor de tempo.
+
+Nada disso precisa ser montado à mão:
+
+```bash
+ENDPOINT=/unicorn TRACE=<trace-id> make urls
+```
+
+O `stack/urls.sh` lê a janela de `snapshot/janela.env`, descobre o UID da regra
+de alerta sintética pela API do Grafana, imprime as sete URLs na ordem do
+roteiro e grava `snapshot/favoritos.html` — um arquivo de favoritos importável
+no Chrome, no Edge ou no Firefox (Favoritos → Gerenciar → Importar de arquivo
+HTML).
 
 A tabela para preencher está em [`stack/JANELA.md`](../stack/JANELA.md).
 
@@ -389,3 +405,62 @@ existe para tornar visível o ciclo de estados, que é o que estamos ensinando.
 No banco interno do Grafana, em `/var/lib/grafana` — o volume que o nosso
 override monta. Elas são criadas durante a gravação e viajam dentro de
 `snapshot/grafana.tgz`. Não é preciso recriá-las no dia.
+
+## O que já vem pronto no snapshot
+
+O `snapshot/` distribuído para o grupo não tem só os dados: tem também o estado
+do Grafana, porque o banco interno dele viaja dentro de `grafana.tgz`. Isso
+significa que estes objetos já existem depois de um `make restore`.
+
+### Pasta `Tool Demo`
+
+Separa o material da demo do que é provisionado pelo repositório oficial. Fica
+visível na lista de dashboards e na de alertas.
+
+### Dashboard `MLT Demo (Tool Demo DCC-UFMG)`
+
+- UID `mlt-demo`, URL `/d/mlt-demo/mlt-demo-tool-demo-dcc-ufmg`.
+- Cópia editável do `MLT Dashboard`: os mesmos 8 painéis e as mesmas 3
+  variáveis de template (`httpStatus`, `httpEndpoint`, `serviceVersion`).
+- Intervalo padrão já absoluto, apontando para a janela gravada.
+- Auto-refresh desligado, porque dado congelado não muda e o refresh só
+  produz requisição inútil no meio da apresentação.
+
+Foi criado com a API, não pela interface, para que o processo fique
+reproduzível:
+
+```bash
+curl -s http://localhost:3000/api/dashboards/uid/<uid-do-original> \
+  > copia.json
+# trocar uid, title e time; remover id; depois:
+curl -s -X POST http://localhost:3000/api/dashboards/db \
+  -H 'Content-Type: application/json' --data-binary @copia.json
+```
+
+Detalhe que economiza tempo: o dashboard original está no esquema novo
+(`dashboard.grafana.app/v2`), mas a API antiga (`/api/dashboards/uid/...`)
+devolve a conversão para o esquema clássico, e é essa conversão que dá para
+salvar de volta.
+
+### As duas regras de alerta
+
+No grupo `demo`, com intervalo de avaliação de **10 segundos** — o mínimo que o
+Grafana aceita, e o que torna a transição de estado visível ao vivo.
+
+| Regra | Condição | Pending | Comportamento na demo |
+|---|---|---|---|
+| `Taxa de erro acima de 5%` | erro % `> 5` sobre `traces_spanmetrics_calls_total` | 5m | fica em `No Data`, como esperado |
+| `[SINTÉTICA] Demonstração de transição de estado — não é uma condição real` | `vector(1) > 0` | 30s | `Normal → Pending → Alerting` em ~40 s |
+
+As duas foram criadas por
+`POST /api/v1/provisioning/alert-rules` com o cabeçalho
+`X-Disable-Provenance: true`, que é o que permite continuar editando as regras
+pela interface depois. Sem esse cabeçalho, o Grafana as marca como
+provisionadas e trava a edição.
+
+A descrição de cada regra, visível no detalhe dela, explica em texto por que
+ela se comporta daquele jeito. Serve de cola durante a apresentação.
+
+### `favoritos.html`
+
+Gerado por `make urls`. Importe no navegador antes de apresentar.

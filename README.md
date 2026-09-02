@@ -95,6 +95,7 @@ conhecido.
 | `freeze.sh` | Para os containers e exporta os volumes para `snapshot/*.tgz`. |
 | `restore.sh` | Recria os volumes a partir dos tarballs e sobe o stack. Idempotente. |
 | `verify.sh` | Semáforo de OK/FALHOU por fonte de dados dentro da janela. |
+| `urls.sh` | Gera as sete URLs congeladas e `snapshot/favoritos.html`, importável no navegador. |
 | `pin-images.sh` | Imprime as imagens `mythical-*` fixadas por digest. |
 | `clean.sh` | Derruba o stack e apaga os volumes. Preserva `snapshot/`. |
 
