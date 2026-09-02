@@ -66,9 +66,10 @@ intervalo absoluto. Não mexa no seletor.
 
 ### O trace não abre / a cascata de spans está vazia
 
-**Causa quase certa:** a retenção do Tempo voltou para `1h`. Isso acontece se
-alguém rodou `git checkout` ou `git pull` dentro de `intro-to-mltp/` depois do
-`make setup`, revertendo o `tempo.yaml`.
+**Causa quase certa:** o `tempo.yaml` foi revertido. Isso acontece se alguém
+rodou `git checkout` ou `git pull` dentro de `intro-to-mltp/` depois do
+`make setup`, desfazendo os dois ajustes que o script faz: a retenção de blocos
+(que volta para `1h`) e o `query_backend_after` (que volta para `15m`).
 
 **Resposta ao vivo:** usar o favorito 5 (trace aberto direto). Se ele também
 falhar, seguir para o vídeo, explicando que houve um problema de retenção de

@@ -94,14 +94,48 @@ Cuidado ao editar à mão: existe uma chave parecida logo abaixo,
 `compacted_block_retention`, que é outra coisa e não deve ser alterada. O `sed`
 do `setup.sh` está ancorado no início da linha justamente por isso.
 
-### Armadilha 3 — o k6 sobe sozinho e não morre
+### Armadilha 3 — o Tempo não busca em dados com menos de 15 minutos
+
+Esta é a mais sutil das armadilhas, e a que mais tempo custou a descobrir.
+
+O Tempo divide a busca em dois caminhos: dados recentes vêm do *live-store*
+(memória e WAL), dados antigos vêm dos blocos no armazenamento. A fronteira é
+`query_frontend.search.query_backend_after`, que vale **15 minutos** por padrão.
+
+Depois de um `restore`, o live-store está vazio — todo o dataset está nos
+blocos. Se a janela congelada tiver menos de 15 minutos de idade, a busca por
+traces devolve zero resultados, sem erro nenhum: o Tempo simplesmente não olha
+para os blocos naquele intervalo.
+
+No dia da apresentação isso não apareceria, porque a janela terá dias. O
+problema é que o **ensaio** logo depois de congelar parece um fracasso
+completo, e o grupo vai procurar defeito onde não tem.
+
+`stack/setup.sh` reduz o valor para `1m`. Não dá para zerar: o Tempo se recusa a
+subir com
+
+```
+QueryBackendAfter (0s) must be greater than query end cutoff (30s)
+```
+
+### Armadilha 4 — o `up` devolve o controle com containers parados
+
+O `mythical-requester` e o `mythical-recorder` dependem do healthcheck da fila
+RabbitMQ. Em algumas execuções o `docker compose up -d` devolve o controle com
+os dois ainda em estado `Created`, sem nunca iniciá-los. O stack parece no ar,
+mas a aplicação não gera tráfego nenhum.
+
+A função `subir_sem_k6()` usa `--wait --wait-timeout 240` justamente por isso, e
+o `make verify` confere serviço por serviço.
+
+### Armadilha 5 — o k6 sobe sozinho e não morre
 
 O serviço `k6` está no compose com `restart: always`. Subir o stack sem
 `--scale k6=0` deixa um teste de carga rodando indefinidamente contra a
 aplicação — o que, além de estar fora do escopo do trabalho (ver
 `03-escopo-e-fronteiras.md`), polui o dataset com tráfego sintético.
 
-### Armadilha 4 — o Grafana baixa plugins da internet a cada boot
+### Armadilha 6 — o Grafana baixa plugins da internet a cada boot
 
 O serviço usa `GF_INSTALL_PLUGINS` com plugins de app. Sem persistência, esse
 download acontece em toda inicialização e a demo passa a depender do Wi-Fi da
@@ -127,9 +161,17 @@ make setup
 > `make <alvo>` deste documento por `./stack/<alvo>.sh`. O resultado é o mesmo.
 
 O script clona o `grafana/intro-to-mltp` em `intro-to-mltp/`, fixa o commit
-registrado em `stack/_comum.sh`, corrige a retenção do Tempo, avisa sobre o k6 e
-sobre o dashboard do k6, e baixa todas as imagens. Ao final grava
-`stack/.setup-info` com o que foi fixado.
+registrado em `stack/_comum.sh`, aplica os dois ajustes no `tempo/tempo.yaml`
+(retenção de blocos e `query_backend_after`), avisa sobre o k6 e sobre o
+dashboard do k6, e baixa todas as imagens. Ao final grava `stack/.setup-info`
+com o que foi fixado.
+
+O `tempo.yaml` original fica guardado em `tempo/tempo.yaml.original`, e o
+script é idempotente: rodar de novo não duplica nada.
+
+> Nunca rode `git pull` dentro de `intro-to-mltp/`. Isso desfaz os dois ajustes
+> e o sintoma só aparece na hora de abrir um trace. Se acontecer, rode
+> `make setup` outra vez.
 
 Fixar o commit importa: o repositório oficial recebe commits com frequência e já
 mudou o esquema dos dashboards. Sem isso, o ensaio e a apresentação podem ver
@@ -229,9 +271,14 @@ make verify
 ```
 
 O `restore.sh` derruba os containers, **remove e recria** os volumes, restaura
-os tarballs, sobe o stack sem o k6 e espera o `/api/health` do Grafana
-responder com `database: ok`. Ele é idempotente: rodar dez vezes seguidas
-produz o mesmo resultado, porque os volumes são sempre recriados do zero.
+os tarballs, sobe o stack sem o k6, espera o `/api/health` do Grafana responder
+com `database: ok` e então aquece as fontes de dados: ele repete a consulta ao
+Loki e ao Tempo na janela congelada até as duas responderem. Sem essa espera,
+um `make verify` disparado imediatamente acusa falha no Loki e no Tempo apenas
+porque o índice e a lista de blocos ainda estavam carregando.
+
+Ele é idempotente: rodar dez vezes seguidas produz o mesmo resultado, porque os
+volumes são sempre recriados do zero. O ciclo completo leva de 1 a 2 minutos.
 
 O `verify.sh` é o teste de cinco minutos. Ele recebe a janela (ou lê de
 `snapshot/janela.env`) e consulta as quatro fontes, imprimindo um semáforo:
