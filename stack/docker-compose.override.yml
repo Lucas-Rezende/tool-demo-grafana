@@ -1,0 +1,78 @@
+# Override aplicado por cima do docker-compose.yml oficial do intro-to-mltp.
+# Ele nunca é usado sozinho: todos os scripts em stack/ chamam
+#   docker compose -f <mltp>/docker-compose.yml -f stack/docker-compose.override.yml
+# (ver a função dc() em stack/_comum.sh).
+#
+# Três objetivos, nesta ordem de importância:
+#   1. tornar o dataset congelável, criando os volumes nomeados que faltam;
+#   2. tirar o Grafana da internet, para que a demo não dependa de rede;
+#   3. deixar a interface legível no projetor.
+
+volumes:
+  # Já declarados no compose oficial, repetidos aqui só por clareza.
+  grafana:
+  postgres:
+  # Estes três NÃO existem no compose oficial. Sem eles, os dados de Loki,
+  # Tempo e Mimir vivem na camada gravável do container e são destruídos por
+  # qualquer `docker compose down` — o que inviabiliza congelar a janela.
+  loki:
+  tempo:
+  mimir:
+
+services:
+  grafana:
+    volumes:
+      # O compose oficial DECLARA o volume `grafana`, mas não o monta em
+      # serviço nenhum. Resultado: o banco interno do Grafana (dashboards
+      # salvos pela UI, regras de alerta, plugins baixados) fica na camada
+      # gravável do container. Montar aqui é o que faz a cópia do dashboard e
+      # as regras de alerta sobreviverem ao congelamento.
+      - "grafana:/var/lib/grafana"
+    environment:
+      # GF_INSTALL_PLUGINS baixa plugins da internet a cada boot. Com o volume
+      # acima, o download acontece uma vez (na gravação) e fica congelado.
+      # As variáveis abaixo eliminam o resto das chamadas externas: sem elas,
+      # a tela inicial trava esperando o feed de notícias quando o Wi-Fi da
+      # sala está ruim.
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_ANALYTICS_FEEDBACK_LINKS_ENABLED=false
+      # Tema claro projeta muito melhor que o escuro em sala com luz acesa.
+      - GF_USERS_DEFAULT_THEME=light
+
+  loki:
+    volumes:
+      # loki/loki.yaml usa path_prefix: /loki e grava chunks em /loki/chunks.
+      - "loki:/loki"
+
+  tempo:
+    volumes:
+      # tempo/tempo.yaml grava WAL, blocos e o WAL do metrics-generator sob
+      # /tmp/tempo. Montar a raiz cobre os três de uma vez.
+      #
+      # ATENÇÃO: /tmp/tempo não existe na imagem, então o volume nasce
+      # root:root e o Tempo (uid 10001) não consegue escrever. Quem conserta é
+      # preparar_volumes() em stack/_comum.sh, chamada antes de todo `up`.
+      # Ver docs/04-demo-reprodutivel.md, armadilha 1.
+      - "tempo:/tmp/tempo"
+
+  mimir:
+    volumes:
+      # mimir/mimir.yaml grava TSDB, compactor e regras sob /tmp/mimir.
+      - "mimir:/tmp/mimir"
+
+  # As imagens mythical-* usam tag mutável (`...-latest`) no compose oficial.
+  # Rode `make pin` (stack/pin-images.sh) para gerar os digests da máquina que
+  # gravou a janela e cole o bloco abaixo, descomentado. Isso garante que o
+  # dia da apresentação use exatamente a imagem do ensaio.
+  #
+  # mythical-requester:
+  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
+  # mythical-server:
+  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
+  # mythical-recorder:
+  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
+  # mythical-frontend:
+  #   image: ghcr.io/grafana/intro-to-mltp@sha256:...
