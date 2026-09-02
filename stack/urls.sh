@@ -133,7 +133,10 @@ else
   U5="$(url /explore "orgId=1" "schemaVersion=1" "panes=$(pane_tempo '{status=error}')")"
 fi
 
-U6="$(url /alerting/list "orgId=1")"
+# view=list em vez do agrupamento padrão: a visão agrupada abre com a pasta
+# recolhida e obrigaria a pessoa 3 a expandir o grupo no projetor. Com
+# view=list as duas regras aparecem de cara, com o resumo de cada uma.
+U6="$(url /alerting/list "orgId=1" "view=list")"
 
 UID_SINT="$(uid_regra_sintetica || true)"
 if [ -n "$UID_SINT" ]; then
