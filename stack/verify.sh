@@ -10,6 +10,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/_comum.sh"
 
 exigir_comando curl "Instale o curl (vem com o Git for Windows)."
 exigir_docker
+exigir_mltp
 
 INICIO_MS="${1:-}"
 FIM_MS="${2:-}"

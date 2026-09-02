@@ -126,18 +126,23 @@ vol() { printf '%s_%s' "$PROJETO" "$1"; }
 #   "failed to create store: mkdir /tmp/tempo/blocks: permission denied".
 # O stack sobe, dashboard e logs funcionam, e só o trace — o clímax da
 # apresentação — não existe.
-declare -A DONO_VOLUME=(
-  [tempo]="10001:10001"
-)
+#
+# Lista simples em vez de array associativo de propósito: o bash padrão do
+# macOS ainda é o 3.2, que não tem `declare -A`.
+DONOS_A_AJUSTAR="tempo:10001:10001"
 
 # Cria os volumes que faltam e conserta o dono. Precisa rodar ANTES do `up`.
 preparar_volumes() {
+  local v item nome dono
   for v in "${VOLUMES[@]}"; do
     volume_existe "$v" || docker volume create "$(vol "$v")" >/dev/null
   done
-  for v in "${!DONO_VOLUME[@]}"; do
-    docker_container run --rm -v "$(vol "$v"):/dados" alpine:3.22 \
-      chown -R "${DONO_VOLUME[$v]}" /dados
+  for item in $DONOS_A_AJUSTAR; do
+    nome="${item%%:*}"
+    dono="${item#*:}"
+    volume_existe "$nome" || continue
+    docker_container run --rm -v "$(vol "$nome"):/dados" alpine:3.22 \
+      chown -R "$dono" /dados
   done
 }
 
@@ -163,11 +168,14 @@ importar_volume() {
 # Epoch em milissegundos. É o formato que o Grafana usa em `from=`/`to=` na URL
 # e o que verify.sh consome. `date +%s%3N` não existe no macOS, daí o fallback.
 agora_ms() {
-  if date +%s%3N 2>/dev/null | grep -qE '^[0-9]+$'; then
-    date +%s%3N
-  else
-    printf '%s000' "$(date +%s)"
-  fi
+  # O `date` do macOS não entende %3N e devolve algo como "17883105473N".
+  # Por isso exigimos exatamente 13 dígitos antes de aceitar o resultado.
+  local t
+  t="$(date +%s%3N 2>/dev/null || true)"
+  case "$t" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) printf '%s' "$t" ;;
+    *) printf '%s000' "$(date +%s)" ;;
+  esac
 }
 
 ms_para_legivel() {
