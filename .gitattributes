@@ -1,0 +1,9 @@
+# Os scripts de stack/ rodam dentro de containers Linux e no Git Bash.
+# Sem isto, um clone no Windows com core.autocrlf=true grava CRLF e o shell
+# falha com "bad interpreter: /usr/bin/env bash^M".
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.md    text eol=lf
+Makefile text eol=lf
