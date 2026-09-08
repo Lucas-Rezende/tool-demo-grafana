@@ -1,0 +1,203 @@
+{
+  "id": null,
+  "uid": "maintenance-demo",
+  "title": "Demo Grafana — Incidente de Manutenção",
+  "tags": ["grafana", "manutencao", "demo"],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "endpoint",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "postgres-demo" },
+        "query": "SELECT DISTINCT endpoint AS __text, endpoint AS __value FROM request_events ORDER BY 1",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "%",
+        "multi": false,
+        "current": { "selected": true, "text": "All", "value": "%" },
+        "hide": 0
+      },
+      {
+        "name": "version",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "postgres-demo" },
+        "query": "SELECT DISTINCT version AS __text, version AS __value FROM request_events ORDER BY 1",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "%",
+        "multi": false,
+        "current": { "selected": true, "text": "All", "value": "%" },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Deploys",
+        "datasource": { "type": "postgres", "uid": "postgres-demo" },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "rawQuery": "SELECT ts AS time, description AS text, version AS tags FROM deploy_events WHERE $__timeFilter(ts)",
+        "target": {
+          "format": "table",
+          "rawSql": "SELECT ts AS time, description AS text, version AS tags FROM deploy_events WHERE $__timeFilter(ts)",
+          "refId": "Anno"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Requisições por minuto",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 12 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(ts, '1m'), count(*) AS \"req/min\" FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' GROUP BY 1 ORDER BY 1",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Taxa de erro 5xx (%)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"orange","value":3}, {"color":"red","value":5} ] },
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 18 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(ts, '1m'), 100.0 * count(*) FILTER (WHERE status_code >= 500) / count(*) AS \"erro %\" FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' GROUP BY 1 ORDER BY 1",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Latência P95 (ms)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"orange","value":700}, {"color":"red","value":1200} ] },
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 18 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(ts, '1m'), percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS \"p95 ms\" FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' GROUP BY 1 ORDER BY 1",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "Erros 5xx por endpoint",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"red","value":50} ] } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "showValue": "always" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT endpoint, count(*) FILTER (WHERE status_code >= 500) AS errors FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' GROUP BY endpoint ORDER BY errors DESC",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Semáforo: erro > 5%?",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [ {"color":"green","value":null}, {"color":"red","value":5} ] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "textMode": "auto" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(ts, '5m'), 100.0 * count(*) FILTER (WHERE status_code >= 500) / count(*) AS \"erro %\" FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' GROUP BY 1 ORDER BY 1",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Resumo por versão e endpoint",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT version, endpoint, requests, errors_5xx, error_rate_pct, p95_latency_ms FROM incident_summary WHERE endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' ORDER BY errors_5xx DESC",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Registros de erro para investigação",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 12 },
+      "datasource": { "type": "postgres", "uid": "postgres-demo" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ts AS time, level, endpoint, version, status_code, latency_ms, error_message, trace_id FROM request_events WHERE $__timeFilter(ts) AND endpoint LIKE '${endpoint:raw}' AND version LIKE '${version:raw}' AND status_code >= 500 ORDER BY ts DESC LIMIT 50",
+          "datasource": { "type": "postgres", "uid": "postgres-demo" }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "text",
+      "title": "Roteiro da investigação",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "options": {
+        "mode": "markdown",
+        "content": "### Pergunta de manutenção\nDepois da v2, por que usuários reclamam de erro e lentidão?\n\n1. Olhe a taxa de erro e P95\n2. Filtre `version = v2`\n3. Filtre `endpoint = /checkout`\n4. Leia os registros de erro\n5. Conclua: provável esgotamento do pool de conexões\n\nA fonte dos dados é uma API pequena real (`orders-api`) recebendo tráfego do `loadgen`."
+      }
+    }
+  ]
+}
