@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: grafana-demo-postgres
+    environment:
+      POSTGRES_DB: grafana_demo
+      POSTGRES_USER: grafana
+      POSTGRES_PASSWORD: grafana
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grafana -d grafana_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  orders-api-v1:
+    build:
+      context: ./app
+    container_name: grafana-demo-orders-api-v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://grafana:grafana@postgres:5432/grafana_demo
+      APP_VERSION: v1
+      BUG_ENABLED: "false"
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  orders-api-v2:
+    build:
+      context: ./app
+    container_name: grafana-demo-orders-api-v2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://grafana:grafana@postgres:5432/grafana_demo
+      APP_VERSION: v2
+      BUG_ENABLED: "true"
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  loadgen:
+    build:
+      context: ./loadgen
+    container_name: grafana-demo-loadgen
+    depends_on:
+      orders-api-v1:
+        condition: service_healthy
+      orders-api-v2:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://grafana:grafana@postgres:5432/grafana_demo
+      V1_URL: http://orders-api-v1:8000
+      V2_URL: http://orders-api-v2:8000
+      PHASE_SECONDS: "240"
+      REQUEST_INTERVAL_SECONDS: "0.20"
+      MAX_WORKERS: "24"
+      RESET_DATA: "true"
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_USERS_DEFAULT_THEME: light
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/maintenance-demo.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  postgres-data:

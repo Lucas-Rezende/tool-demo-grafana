@@ -1,24 +1,7 @@
-# Dataset congelado. São centenas de MB de blocos de TSDB, chunks de log e
-# blocos de trace — não entra no Git. Combine com o grupo como compartilhar
-# (pendrive, Drive, zip no Classroom). Ver docs/04-demo-reprodutivel.md.
+upstream-reference/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+postgres-data/
 snapshot/
-
-# Clone do repositório oficial da Grafana, criado por 'make setup'.
-# É código de terceiros e é recriável a partir do commit fixado em
-# stack/_comum.sh; não faz sentido versionar aqui.
-intro-to-mltp/
-
-# Dependências do gravador de vídeo (Node), instaladas por 'make video'.
-# São ~30 MB de node_modules e não fazem parte da demo.
-.video/
-
-# Metadados gerados por 'make setup' na máquina local.
-stack/.setup-info
-
-# Lixo de sistema operacional e de editor
-.DS_Store
-Thumbs.db
-desktop.ini
-.vscode/
-.idea/
-*~
